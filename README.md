@@ -103,6 +103,7 @@ and join our comunity.
 * Create a Branch, we use [topic branches](https://git-scm.com/book/en/v2/Git-Branching-Branching-Workflows#Topic-Branches) for our commits. 
 * Push your commit(s) to your repository.
 * Create a pull request to the original repo in ONI organization.
+* Sign [Contributor License Agreement](docs/ONI-CCLA.docx) and send it to *info@open-network-insight.org*
 
 ### **Commit Guidelines**
 
