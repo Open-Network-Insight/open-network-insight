@@ -205,8 +205,8 @@ object DNSSuspiciousConnectsModel {
       config.ldaImplementation,
       logger,
       "em",
-      2.5,
-      1.1,
+      0.02,
+      1.001,
       120,
       config.ldaPRGSeed)
 
