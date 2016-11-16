@@ -9,9 +9,9 @@ from common.utils import Util
 from common.kerberos import Kerberos
 from common.kafka_client import KafkaConsumer
 
-script_path = os.path.dirname(os.path.abspath(__file__))
-conf_file = "{0}/ingest_conf.json".format(script_path)
-worker_conf = json.loads(open (conf_file).read())
+conf_file = '/etc/spot.conf'
+worker_conf = ConfigParser.SafeConfigParser()
+worker_conf.read(conf_file)
 
 def main():
 
@@ -31,39 +31,42 @@ def start_worker(type,topic,id,processes=None):
 
     logger = Util.get_logger("SPOT.INGEST.WORKER")
 
-    # validate the given configuration exists in ingest_conf.json.
-    if not type in worker_conf["pipelines"]:
-        logger.error("'{0}' type is not a valid configuration.".format(type));
+    # validate the given configuration exists in spot.conf
+    try:
+        master_conf.get(type, 'type'
+    except ConfigParser.NoSectionError:
+        logger.error("'{0}' type is not a valid configuration.".format(type))
         sys.exit(1)
 
     # validate the type is a valid module.
-    if not Util.validate_data_source(worker_conf["pipelines"][type]["type"]):
-        logger.error("The provided data source {0} is not valid".format(type));sys.exit(1)
+    if not Util.validate_data_source(master_conf.get(type, "type"):
+        logger.error("'{0}' type is not configured. Please check /etc/spot.conf".format(type);
+        sys.exit(1)
 
-    # validate if kerberos authentication is requiered.
-    if os.getenv('KRB_AUTH'):
+    # validate if kerberos authentication is required.
+    if master_conf.get('kerberos', 'KRB_AUTH'):
         kb = Kerberos()
         kb.authenticate()
 
     # create a worker instance based on the data source type.
-    module = __import__("pipelines.{0}.worker".format(worker_conf["pipelines"][type]["type"]),fromlist=['Worker'])
+    module = __import__("pipelines.{0}.worker".format(worker_conf(type, 'type')),fromlist=['Worker'])
 
     # kafka server info.
     logger.info("Initializing kafka instance")
-    k_server = worker_conf["kafka"]['kafka_server']
-    k_port = worker_conf["kafka"]['kafka_port']
+    k_server = worker_conf.get('ingest', 'kafka_server')
+    k_port = worker_conf.get('ingest', 'kafka_port')
 
     # required zookeeper info.
-    zk_server = worker_conf["kafka"]['zookeper_server']
-    zk_port = worker_conf["kafka"]['zookeper_port']
+    zk_server = worker_conf.get('ingest', 'zookeper_server')
+    zk_port = worker_conf('ingest','zookeper_port')
     topic = topic
 
     # create kafka consumer.
     kafka_consumer = KafkaConsumer(topic,k_server,k_port,zk_server,zk_port,id)
 
     # start worker.
-    db_name = worker_conf['dbname']
-    app_path = worker_conf['hdfs_app_path']
+    db_name = worker_conf.get('database','DBNAME']
+    app_path = worker_conf.get('ingest', 'hdfs_app_path')
     ingest_worker = module.Worker(db_name,app_path,kafka_consumer,type,processes)
     ingest_worker.start()
 
