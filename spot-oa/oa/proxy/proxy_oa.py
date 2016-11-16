@@ -50,7 +50,7 @@ class OA(object):
         self._conf = json.loads(open (conf_file).read(),object_pairs_hook=OrderedDict)
 
         # initialize data engine
-        self._db = self._spot_conf.get('conf', 'DBNAME').replace("'", "").replace('"', '')
+        self._db = self._spot_conf.get('DEFAULT', 'DBNAME')
         self._engine = Data(self._db, self._table_name,self._logger)
 
 
@@ -104,7 +104,7 @@ class OA(object):
         proxy_results = "{0}/proxy_results.csv".format(self._data_path)
 
         # get hdfs path from conf file.
-        HUSER = self._spot_conf.get('conf', 'HUSER').replace("'", "").replace('"', '')
+        HUSER = self._spot_conf.get('DEFAULT', 'HUSER')
         hdfs_path = "{0}/proxy/scored_results/{1}/scores/proxy_results.csv".format(HUSER,self._date)
 
         # get results file from hdfs.
@@ -276,7 +276,7 @@ class OA(object):
 
 		# due an issue with the output of the query.
 		update_rows = [ [ w.replace('"','') for w in l ] for l in update_rows ]
-	
+
 
             # create edge file.
             self._logger.info("Creating edge file:{0}".format(edge_file))

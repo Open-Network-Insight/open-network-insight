@@ -7,18 +7,18 @@ import ConfigParser
 def main():
 
     #initialize ConfigParser
-    conf_file = '../spot-setup/spot.conf'
+    conf_file = '/etc/spot.conf'
     conf = ConfigParser.SafeConfigParser()
     spot_conf = conf.read(conf_file)
 
     #initialize logging
     logger = get_logger('SPOT.ML.OPS',create_file=False)
-    
+
     #check for file
     if len(spot_conf) < 1:
         logger.info("Failed to open /etc/spot.conf, check file location and try again")
         raise SystemExit
-    
+
     ## parse and validate arguments
     tol = None
 
@@ -29,11 +29,11 @@ def main():
     parser.add_argument('-T','--tol',dest='tol',required=False,help='If present will override default TOL from conf file',metavar='')
     parser.add_argument('-m','--maxResults',dest='MAXRESULTS',required=False,help='If defined sets max results returned',metavar='')
     args = parser.parse_args()
-    
+
     YR=args.fdate[0:4]
     MH=args.fdate[4:6]
     DY=args.fdate[6:8]
-    
+
     #getting defaults for ConfigParser interpolation
     DEFAULTS = vars(args)
     DEFAULTS.update({'YR':YR,'MH':MH,'DY':DY})
@@ -54,37 +54,37 @@ def main():
     LOCAL_DOCRESULTS = "{0}/doc_results.csv".format(LPATH)
     HDFS_WORDRESULTS = "{0}/word_results.csv".format(HPATH)
     LOCAL_WORDRESULTS = "{0}/word_results.csv".format(LPATH)
-    
+
     HDFS_SCORED_CONNECTS = "{0}/scores".format(HPATH)
-    
-    LDA_OUTPUT_DIR = "{0}/{1}".format(args.type,args.fdate)
-    
+
+    LDA_OUTPUT_DIR = "{1}/{1}".format(args.type,args.fdate)
+
     #get nodes and create comma seperated list
     NODES = conf.get('DEFAULT','NODES').split()
     nodes_csl = ','.join(NODES)
-    
+
     cmd = "hdfs dfs -rm -R -f {0}".format(HDFS_WORDCOUNTS)
     execute_cmd(cmd,logger)
 
     cmd = "mkdir -p {0}".format(LPATH)
     execute_cmd(cmd,logger)
-     
+
     # protect the flow_scores.csv file
     cmd = "rm -f {0}/*.{dat,beta,gamma,other,pkl}".format(LPATH)
     execute_cmd(cmd,logger)
 
     cmd = "hdfs dfs -rm -R -f {0}".format(HDFS_SCORED_CONNECTS)
     execute_cmd(cmd,logger)
-    
+
     # Add -p <command> to execute pre MPI command.
     # Pre MPI command can be configured in /etc/spot.conf
     # In this script, after the line after --mpicmd ${MPI_CMD} add:
     # --mpiprep ${MPI_PREP_CMD}
-    
+
     if conf.get('mpi',"MPI_PREP_CMD"):
         cmd = conf.get('mpi',"MPI_PREP_CMD")
         execute_cmd(cmd,logger)
-    
+
     SPK_CONFIG = conf.get('spark','SPK_CONFIG')
     SPK_DRIVER_MEM = conf.get('spark','SPK_DRIVER_MEM')
     SPK_EXEC = conf.get('spark','SPK_EXEC')
@@ -98,49 +98,49 @@ def main():
     MPI_CMD = conf.get('mpi','MPI_CMD')
     PROCESS_COUNT = conf.get('mpi','PROCESS_COUNT')
     TOPIC_COUNT = conf.get('DEFAULT','TOPIC_COUNT')
-    
+
     if tol:
         TOL = tol
     else:
         TOL = conf.get('DEFAULT','TOL')
-    
+
     #prepare options for spark-submit
     spark_cmd = [
         "time", "spark-submit", "--class org.apache.spot.SuspiciousConnects",
-         "--master yarn-client", "--conf spark.driver.maxPermSize=512m", "--conf spark.driver.cores=1", 
-         "--conf spark.dynamicAllocation.enabled=true", "--conf spark.dynamicAllocation.minExecutors=1", 
-         "--conf spark.executor.extraJavaOptions=-XX:MaxPermSize=512M -XX:PermSize=512M", 
-         "--conf spark.shuffle.io.preferDirectBufs=false", "--conf spark.kryoserializer.buffer.max=512m", 
+         "--master yarn-client", "--conf spark.driver.maxPermSize=512m", "--conf spark.driver.cores=1",
+         "--conf spark.dynamicAllocation.enabled=true", "--conf spark.dynamicAllocation.minExecutors=1",
+         "--conf spark.executor.extraJavaOptions=-XX:MaxPermSize=512M -XX:PermSize=512M",
+         "--conf spark.shuffle.io.preferDirectBufs=false", "--conf spark.kryoserializer.buffer.max=512m",
          "--conf spark.shuffle.service.enabled=true", "--conf spark.yarn.am.waitTime=1000000"]
-    
+
     spark_extras = [
-        "--driver-memory " + SPK_DRIVER_MEM, 
-        "--conf spark.dynamicAllocation.maxExecutors=" + SPK_EXEC, 
-        "--conf spark.executor.cores=" + SPK_EXEC_CORES, 
-        "--conf spark.executor.memory=" + SPK_EXEC_MEM, 
-        "--conf spark.driver.maxResultSize=" + SPK_DRIVER_MAX_RESULTS, 
-        "--conf spark.yarn.driver.memoryOverhead=" + SPK_DRIVER_MEM_OVERHEAD, 
+        "--driver-memory " + SPK_DRIVER_MEM,
+        "--conf spark.dynamicAllocation.maxExecutors=" + SPK_EXEC,
+        "--conf spark.executor.cores=" + SPK_EXEC_CORES,
+        "--conf spark.executor.memory=" + SPK_EXEC_MEM,
+        "--conf spark.driver.maxResultSize=" + SPK_DRIVER_MAX_RESULTS,
+        "--conf spark.yarn.driver.memoryOverhead=" + SPK_DRIVER_MEM_OVERHEAD,
         "--conf spark.yarn.executor.memoryOverhead=" + SPK_EXEC_MEM_OVERHEAD]
-    
+
     if SPK_CONFIG:
         logger.info('Adding Spark Configurations from spot.conf')
         spark_cmd.extend(spark_extras)
 
-    spot_jar = [         
-        "target/scala-2.10/spot-ml-assembly-1.1.jar", 
+    spot_jar = [
+        "target/scala-2.10/spot-ml-assembly-1.1.jar",
         "--analysis " + args.type,
-        "--input " + RAWDATA_PATH, "--dupfactor " + DUPFACTOR, 
-        "--feedback " + FEEDBACK_PATH, 
-        "--model " + LPATH + "/model.dat", 
-        "--topicdoc " + LPATH + "/final.gamma", 
-        "--topicword " + LPATH + "/final.beta", 
-        "--lpath " + LPATH, "--ldapath" + LDAPATH, 
-        "--luser " + LUSER, "--mpicmd " + MPI_CMD, 
-        "--proccount " + PROCESS_COUNT, 
-        "--topiccount " + TOPIC_COUNT, 
-        "--nodes " + nodes_csl, 
-        "--scored " + HDFS_SCORED_CONNECTS, 
-        "--threshold " + TOL, 
+        "--input " + RAWDATA_PATH, "--dupfactor " + DUPFACTOR,
+        "--feedback " + FEEDBACK_PATH,
+        "--model " + LPATH + "/model.dat",
+        "--topicdoc " + LPATH + "/final.gamma",
+        "--topicword " + LPATH + "/final.beta",
+        "--lpath " + LPATH, "--ldapath" + LDAPATH,
+        "--luser " + LUSER, "--mpicmd " + MPI_CMD,
+        "--proccount " + PROCESS_COUNT,
+        "--topiccount " + TOPIC_COUNT,
+        "--nodes " + nodes_csl,
+        "--scored " + HDFS_SCORED_CONNECTS,
+        "--threshold " + TOL,
         "--maxresults " + MAXRESULTS]
 
     spark_cmd.extend(spot_jar)
@@ -158,7 +158,7 @@ def execute_cmd(command,logger):
     try:
         logger.info("Executing: {0}".format(command))
         subprocess.call(command,shell=True)
-        
+
     except subprocess.CalledProcessError as e:
         logger.error("There was an error executing: {0}".format(e.cmd))
         sys.exit(1)
@@ -167,7 +167,7 @@ def validate_parameter(parameter,message,logger):
     if parameter == None or parameter == "":
         logger.error(message)
         sys.exit(1)
-    
+
 def get_logger(logger_name,create_file=False):
 
     # create logger for prd_ci

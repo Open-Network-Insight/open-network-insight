@@ -6,18 +6,18 @@ import sys
 import ConfigParser
 
 class Util(object):
-	
+
 	@classmethod
 	def get_logger(cls,logger_name,create_file=False):
-		
+
 
 		# create logger for prd_ci
 		log = logging.getLogger(logger_name)
 		log.setLevel(level=logging.INFO)
-		
+
 		# create formatter and add it to the handlers
 		formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-		
+
 		if create_file:
 				# create file handler for logger.
 				fh = logging.FileHandler('oa.log')
@@ -37,15 +37,15 @@ class Util(object):
 
 	@classmethod
 	def get_spot_conf(cls):
-		
+
 		conf_file = "/etc/spot.conf"
-		config = ConfigParser.ConfigParser()
-		config.readfp(SecHead(open(conf_file)))	
+		config = ConfigParser.SafeConfigParser()
+		config.read(conf_file)
 
 		return config
-	
+
 	@classmethod
-	def create_oa_folders(cls,type,date):		
+	def create_oa_folders(cls,type,date):
 
 		# create date and ingest summary folder structure if they don't' exist.
 		root_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -59,9 +59,9 @@ class Util(object):
 
 		# retun path to folders.
 		data_path = data_type_folder.format(root_path,type,date)
-		ingest_path = data_type_folder.format(root_path,type,"ingest_summary")		
+		ingest_path = data_type_folder.format(root_path,type,"ingest_summary")
 		return data_path,ingest_path,ipynb_folder
-	
+
 	@classmethod
 	def get_ml_results_form_hdfs(cls,hdfs_file_path,local_path):
 
@@ -72,7 +72,7 @@ class Util(object):
 
 	@classmethod
 	def read_results(cls,file,limit, delimiter=','):
-		
+
 		# read csv results.
 		result_rows = []
 		with open(file, 'rb') as results_file:
@@ -87,17 +87,17 @@ class Util(object):
 
 	@classmethod
 	def ip_to_int(self,ip):
-		
+
 		try:
 			o = map(int, ip.split('.'))
 			res = (16777216 * o[0]) + (65536 * o[1]) + (256 * o[2]) + o[3]
-			return res    
+			return res
 
 		except ValueError:
 			return None
-	
+
 	@classmethod
-	def create_csv_file(cls,full_path_file,content,delimiter=','): 
+	def create_csv_file(cls,full_path_file,content,delimiter=','):
 
 		with open(full_path_file, 'w+') as u_file:
 			writer = csv.writer(u_file, quoting=csv.QUOTE_NONE, delimiter=delimiter)
@@ -110,11 +110,11 @@ class SecHead(object):
 
     def readline(self):
         if self.sechead:
-            try: 
+            try:
                 return self.sechead
-            finally: 
+            finally:
                 self.sechead = None
-        else: 
+        else:
             return self.fp.readline()
 
 class ProgressBar(object):
@@ -131,26 +131,26 @@ class ProgressBar(object):
 	def start(self):
 
 		self._move_progress_bar(0)
-	
+
 	def update(self,iterator):
-		
+
 		self._move_progress_bar(iterator)
 
 	def auto_update(self):
 
-		self._auto_iteration_status += 1		
+		self._auto_iteration_status += 1
 		self._move_progress_bar(self._auto_iteration_status)
-	
+
 	def _move_progress_bar(self,iteration):
 
 		filledLength    = int(round(self._bar_length * iteration / float(self._total)))
 		percents        = round(100.00 * (iteration / float(self._total)), self._decimals)
-		bar             = '#' * filledLength + '-' * (self._bar_length - filledLength)	
-		sys.stdout.write("{0} [{1}] {2}% {3}\r".format(self._prefix, bar, percents, self._sufix))		
+		bar             = '#' * filledLength + '-' * (self._bar_length - filledLength)
+		sys.stdout.write("{0} [{1}] {2}% {3}\r".format(self._prefix, bar, percents, self._sufix))
 		sys.stdout.flush()
-		
+
 		if iteration == self._total:print("\n")
 
-		
-	
+
+
 

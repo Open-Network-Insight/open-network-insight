@@ -20,12 +20,12 @@ import time
 
 class OA(object):
 
-    def __init__(self,date,limit=500,logger=None):       
-       
+    def __init__(self,date,limit=500,logger=None):
+
        self._initialize_members(date,limit,logger)
-       
+
     def _initialize_members(self,date,limit,logger):
-        
+
         # get logger if exists. if not, create new instance.
         self._logger = logging.getLogger('OA.Flow') if logger else Util.get_logger('OA.Flow',create_file=False)
 
@@ -46,24 +46,24 @@ class OA(object):
 
         # get scores fields conf
         conf_file = "{0}/flow_conf.json".format(self._scrtip_path)
-        self._conf = json.loads(open (conf_file).read(),object_pairs_hook=OrderedDict)     
- 
+        self._conf = json.loads(open (conf_file).read(),object_pairs_hook=OrderedDict)
+
         # initialize data engine
-        self._db = self._spot_conf.get('conf', 'DBNAME').replace("'", "").replace('"', '')
+        self._db = self._spot_conf.get('DEFAULT', 'DBNAME')
         self._engine = Data(self._db, self._table_name,self._logger)
-              
-    def start(self):       
-        
+
+    def start(self):
+
         ####################
         start = time.time()
         ####################
 
         self._create_folder_structure()
-        self._add_ipynb()  
+        self._add_ipynb()
         self._get_flow_results()
         self._add_network_context()
         self._add_geo_localization()
-        self._add_reputation()        
+        self._add_reputation()
         self._create_flow_scores_csv()
         self._get_oa_details()
 
@@ -71,14 +71,14 @@ class OA(object):
         end = time.time()
         print(end - start)
         ##################
-       
+
     def _create_folder_structure(self):
 
         # create date folder structure if it does not exist.
-        self._logger.info("Creating folder structure for OA (data and ipynb)")       
+        self._logger.info("Creating folder structure for OA (data and ipynb)")
         self._data_path,self._ingest_summary_path,self._ipynb_path = Util.create_oa_folders("flow",self._date)
 
-    def _add_ipynb(self):     
+    def _add_ipynb(self):
 
         if os.path.isdir(self._ipynb_path):
 
@@ -90,16 +90,16 @@ class OA(object):
 
         else:
             self._logger.error("There was a problem adding the IPython Notebooks, please check the directory exists.")
-            
+
     def _get_flow_results(self):
-               
+
         self._logger.info("Getting {0} Machine Learning Results from HDFS".format(self._date))
         flow_results = "{0}/flow_results.csv".format(self._data_path)
 
-        # get hdfs path from conf file 
-        HUSER = self._spot_conf.get('conf', 'HUSER').replace("'", "").replace('"', '')
+        # get hdfs path from conf file
+        HUSER = self._spot_conf.get('DEFAULT', 'HUSER')
         hdfs_path = "{0}/flow/scored_results/{1}/scores/flow_results.csv".format(HUSER,self._date)
-               
+
         # get results file from hdfs
         get_command = Util.get_ml_results_form_hdfs(hdfs_path,self._data_path)
         self._logger.info("{0}".format(get_command))
@@ -116,14 +116,14 @@ class OA(object):
             self._logger.error("There was an error getting ML results from HDFS")
             sys.exit(1)
 
-        # add headers.        
+        # add headers.
         self._logger.info("Adding headers based on configuration file: score_fields.json")
         self._flow_scores = [ [ str(key) for (key,value) in self._conf['flow_score_fields'].items()] ]
 
         # filter results add sev and rank.
         self._logger.info("Filtering required columns based on configuration")
         self._flow_scores.extend([ [0] +  [ conn[i] for i in self._conf['column_indexes_filter'] ] + [n] for n, conn in enumerate(self._flow_results) ])
-     
+
     def _create_flow_scores_csv(self):
 
         flow_scores_csv = "{0}/flow_scores.csv".format(self._data_path)
@@ -131,11 +131,11 @@ class OA(object):
 
         # create bk file
         flow_scores_bu_csv = "{0}/flow_scores_bu.csv".format(self._data_path)
-        Util.create_csv_file(flow_scores_bu_csv,self._flow_scores)  
+        Util.create_csv_file(flow_scores_bu_csv,self._flow_scores)
 
     def _add_network_context(self):
 
-        # use ipranges to see if the IPs are internals.         
+        # use ipranges to see if the IPs are internals.
         ip_ranges_file = "{0}/context/ipranges.csv".format(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
         # add new headers (srcIpInternal/destIpInternal).
@@ -158,38 +158,38 @@ class OA(object):
 
             # get src and dst IPs
             src_ip_index = self._conf["flow_score_fields"]["srcIP"]
-            dst_ip_index = self._conf["flow_score_fields"]["dstIP"]              
-            
+            dst_ip_index = self._conf["flow_score_fields"]["dstIP"]
+
             # add networkcontext per connection.
-            ip_internal_ranges = filter(None,nc_ranges)     
+            ip_internal_ranges = filter(None,nc_ranges)
             self._logger.info("Adding networkcontext to suspicious connections.")
             self._flow_scores = [ conn + [ self._is_ip_internal(conn[src_ip_index],ip_internal_ranges)]+[ self._is_ip_internal(conn[dst_ip_index],ip_internal_ranges)] for conn in flow_scores]
-           
+
         else:
 
-            self._flow_scores = [ conn + ["",""] for conn in flow_scores ]            
+            self._flow_scores = [ conn + ["",""] for conn in flow_scores ]
             self._logger.info("WARNING: Network context was not added because the file ipranges.csv does not exist.")
-        
+
         self._flow_scores.insert(0,flow_headers)
 
     def _is_ip_internal(self,ip, ranges):
         result = 0
         for row in ranges:
-            if Util.ip_to_int(ip) >= row[0] and Util.ip_to_int(ip) <= row[1]: 
+            if Util.ip_to_int(ip) >= row[0] and Util.ip_to_int(ip) <= row[1]:
                 result = 1
                 break
         return result
 
-        
+
     def _add_geo_localization(self):
 
-        # use ipranges to see if the IPs are internals.         
+        # use ipranges to see if the IPs are internals.
         iploc_file = "{0}/context/iploc.csv".format(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-        # add new headers (srcIpInternal/destIpInternal).     
+        # add new headers (srcIpInternal/destIpInternal).
         self._logger.info("Adding geo localization headers")
         flow_headers = self._flow_scores[0]
-        flow_headers.extend(["srcGeo","dstGeo","srcDomain","dstDomain"]) 
+        flow_headers.extend(["srcGeo","dstGeo","srcDomain","dstDomain"])
 
         # add values to srcIpInternal and destIpInternal.
         flow_scores = iter(self._flow_scores)
@@ -199,9 +199,9 @@ class OA(object):
 
             self._logger.info("Initializing geo localization component")
             geo = GeoLocalization(iploc_file,self._logger)
-            
+
             src_ip_index = self._conf["flow_score_fields"]["srcIP"]
-            dst_ip_index = self._conf["flow_score_fields"]["dstIP"] 
+            dst_ip_index = self._conf["flow_score_fields"]["dstIP"]
 
             self._logger.info("Adding geo localization...")
             self._flow_scores = []
@@ -217,29 +217,29 @@ class OA(object):
 
                 # adding columns to the current connection list.
                 conn.extend([src_geo_dict["geo_loc"],dst_geo_dict["geo_loc"],src_geo_dict["domain"],dst_geo_dict["domain"]])
-                self._flow_scores.extend([conn])                
+                self._flow_scores.extend([conn])
         else:
 
-            self._flow_scores = [ conn + ["","","",""] for conn in flow_scores ]   
+            self._flow_scores = [ conn + ["","","",""] for conn in flow_scores ]
             self._logger.info("WARNING: IP location was not added because the file {0} does not exist.".format(iploc_file))
 
-        self._flow_scores.insert(0,flow_headers)       
+        self._flow_scores.insert(0,flow_headers)
 
     def _add_reputation(self):
-        
+
         reputation_conf_file = "{0}/components/reputation/reputation_config.json".format(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        
+
         # add new headers (gtiSrcRep/gtiDstRep).
         self._logger.info("Adding reputation headers")
         flow_headers_rep = self._flow_scores[0]
         flow_headers_rep.extend(["srcIp_rep","dstIp_rep"])
-        
+
         # read configuration.
         self._logger.info("Reading reputation configuration file: {0}".format(reputation_conf_file))
         rep_conf = json.loads(open(reputation_conf_file).read())["gti"]
 
         if os.path.isfile(rep_conf['refclient']):
-           
+
             # initialize gti module.
             self._logger.info("Initializing GTI component")
             flow_gti = gti.Reputation(rep_conf,self._logger)
@@ -253,33 +253,33 @@ class OA(object):
             next(flow_scores_src)
 
             # getting reputation for src IPs
-            src_ips = [ conn[src_ip_index] for conn in flow_scores_src ]            
+            src_ips = [ conn[src_ip_index] for conn in flow_scores_src ]
             src_rep_results = flow_gti.check(src_ips)
 
             self._logger.info("Getting GTI reputation for dst IPs")
             flow_scores_dst = iter(self._flow_scores)
             next(flow_scores_dst)
 
-            # getting reputation for dst IPs            
+            # getting reputation for dst IPs
             dst_ips = [  conn[dst_ip_index] for conn in flow_scores_dst ]
             dst_rep_results = flow_gti.check(dst_ips)
-                       
+
             flow_scores_final = iter(self._flow_scores)
             next(flow_scores_final)
-            
+
             self._flow_scores = []
             flow_scores = [conn + [src_rep_results[conn[src_ip_index]]] + [dst_rep_results[conn[dst_ip_index]]]  for conn in  flow_scores_final ]
-            self._flow_scores = flow_scores           
-           
+            self._flow_scores = flow_scores
+
         else:
             # add values to gtiSrcRep and gtiDstRep.
             flow_scores = iter(self._flow_scores)
             next(flow_scores)
 
-            self._flow_scores = [ conn + ["",""] for conn in flow_scores ]   
-            self._logger.info("WARNING: IP reputation was not added. No refclient configured".format(reputation_conf_file))  
-    
-        self._flow_scores.insert(0,flow_headers_rep)       
+            self._flow_scores = [ conn + ["",""] for conn in flow_scores ]
+            self._logger.info("WARNING: IP reputation was not added. No refclient configured".format(reputation_conf_file))
+
+        self._flow_scores.insert(0,flow_headers_rep)
 
     def _get_oa_details(self):
 
@@ -295,27 +295,27 @@ class OA(object):
 	p_sp.join()
 	p_ch.join()
 
-	
+
     def _get_suspicious_details(self,bar=None):
-        
+
         # skip header
         sp_connections = iter(self._flow_scores)
         next(sp_connections)
-      
+
         # loop connections.
-        connections_added = [] 
+        connections_added = []
         for conn in sp_connections:
-            
-            # validate if the connection's details are not already extracted.            
+
+            # validate if the connection's details are not already extracted.
             if conn in connections_added:
                 continue
             else:
                 connections_added.append(conn)
-           
+
             src_ip_index = self._conf["flow_score_fields"]["srcIP"]
             dst_ip_index = self._conf["flow_score_fields"]["dstIP"]
 
-            # get src ip 
+            # get src ip
             sip = conn[src_ip_index]
             # get dst ip
             dip = conn[dst_ip_index]
@@ -325,16 +325,16 @@ class OA(object):
             date_array_1 = date_array[0].split('-')
             date_array_2 = date_array[1].split(':')
 
-            yr = date_array_1[0]                   
+            yr = date_array_1[0]
             dy = date_array_1[2]
             mh = date_array_1[1]
 
             hr = date_array_2[0]
             mm = date_array_2[1]
-        
+
             # connection details query.
             sp_query = ("SELECT treceived as tstart,sip as srcip,dip as dstip,sport as sport,dport as dport,proto as proto,flag as flags,stos as TOS,ibyt as bytes,ipkt as pkts,input as input, output as output,rip as rip from {0}.{1} where ((sip='{2}' AND dip='{3}') or (sip='{3}' AND dip='{2}')) AND y={8} AND m={4} AND d={5} AND h={6} AND trminute={7} order by tstart limit 100")
-                 
+
             # sp query.
             sp_query = sp_query.format(self._db,self._table_name,sip,dip,mh,dy,hr,mm,yr)
 
@@ -343,15 +343,15 @@ class OA(object):
 
             # execute query
             self._engine.query(sp_query,output_file=edge_file,delimiter="\\t")
-    
+
     def _get_chord_details(self,bar=None):
 
          # skip header
         sp_connections = iter(self._flow_scores)
-        next(sp_connections) 
+        next(sp_connections)
 
         src_ip_index = self._conf["flow_score_fields"]["srcIP"]
-        dst_ip_index = self._conf["flow_score_fields"]["dstIP"] 
+        dst_ip_index = self._conf["flow_score_fields"]["dstIP"]
 
         # get date parameters.
         yr = self._date[:4]
@@ -361,28 +361,28 @@ class OA(object):
         # get number of times each IP appears.
         srcdict = {}
         for conn in sp_connections:
-            if conn[src_ip_index] in srcdict:srcdict[conn[src_ip_index]] += 1 
+            if conn[src_ip_index] in srcdict:srcdict[conn[src_ip_index]] += 1
             else:srcdict[conn[src_ip_index]] = 1
             if conn[dst_ip_index] in srcdict:srcdict[conn[dst_ip_index]] += 1
             else:srcdict[conn[dst_ip_index]] = 1
-        
-        for (ip,n) in srcdict.items():            
+
+        for (ip,n) in srcdict.items():
             if n > 1:
-                ip_list = []                
+                ip_list = []
                 sp_connections = iter(self._flow_scores)
                 next(sp_connections)
-                for row in sp_connections:                    
+                for row in sp_connections:
                     if ip == row[2] : ip_list.append(row[3])
-                    if ip == row[3] :ip_list.append(row[2])    
+                    if ip == row[3] :ip_list.append(row[2])
                 ips = list(set(ip_list))
-             
+
                 if len(ips) > 1:
                     ips_filter = (",".join(str("'{0}'".format(ip)) for ip in ips))
-                    chord_file = "{0}/chord-{1}.tsv".format(self._data_path,ip.replace(".","_"))                     
+                    chord_file = "{0}/chord-{1}.tsv".format(self._data_path,ip.replace(".","_"))
                     ch_query = ("SELECT sip as srcip, dip as dstip, MAX(ibyt) as maxbyte, AVG(ibyt) as avgbyte, MAX(ipkt) as maxpkt, AVG(ipkt) as avgpkt from {0}.{1} where y={2} and m={3} and d={4} and ( (sip='{5}' and dip IN({6})) or (sip IN({6}) and dip='{5}') ) group by sip,dip")
                     self._engine.query(ch_query.format(self._db,self._table_name,yr,mn,dy,ip,ips_filter),chord_file,delimiter="\\t")
 
-     
- 
+
+
 
 
