@@ -26,8 +26,8 @@ fi
 # Validate type (ingest conf).
 #-----------------------------------------------------------------------------------
 CONF_FILE="ingest_conf.json"
-CONF_ING=`python -c "import json,sys;obj=json.loads(open('ingest_conf.json').read());print obj['pipelines']['${INGEST_CONF}'];"`
-TYPE=`python -c "import json,sys;obj=json.loads(open('ingest_conf.json').read());print obj['pipelines']['${INGEST_CONF}']['type'];"`
+CONF_ING=`python -c "import ConfigParser; conf = ConfigParser.SafeConfigParser(); conf.read('spot.conf'); result = '${INGEST_CONF}' if conf.has_section('${INGEST_CONF}') == True else ''; print result"`
+TYPE=`python -c "import ConfigParser; conf = ConfigParser.SafeConfigParser(); conf.read('spot.conf'); print(conf.get('${INGEST_CONF}','type'))"`
 
 if [ -z  "$CONF_ING" ]; then
     echo "Provided type is not part of ${CONF_FILE}"
