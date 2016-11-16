@@ -4,26 +4,26 @@ import subprocess
 import ConfigParser
 
 def main():
-    
+
     #initialize logging
     logger = get_logger('SPOT.HDFS.SETUP',create_file=False)
+
     #initialize ConfigParser
     conf_file = '/etc/spot.conf'
     conf = ConfigParser.SafeConfigParser()
     spot_conf = conf.read(conf_file)
-
     #check for file
     if len(spot_conf) < 1:
-        logger("Failed to open /etc/spot.conf, check file location and try again")
+        logger.info("Failed to open /etc/spot.conf, check file location and try again")
         raise SystemExit
-    
+
     #Get configuration
     DSOURCES = conf.get('DEFAULT','DSOURCES').split()
     DFOLDERS = conf.get('DEFAULT','DFOLDERS').split()
     HUSER = conf.get('DEFAULT','HUSER')
     USER = os.environ.get('USER')
     DBNAME = conf.get('DATABASE','DBNAME')
-    
+
     #create hdfs folders
     mkdir = "sudo -u hdfs hadoop fs -mkdir " + HUSER
     execute_cmd(mkdir,logger)
@@ -39,7 +39,7 @@ def main():
 
     #Create hive tables
     #create catalog
-    cmd = hive -e "CREATE DATABASE ${DBNAME}"
+    cmd = "hive -e 'CREATE DATABASE {0}'".format(DBNAME)
     for source in DSOURCES:
         cmd = "hive -hiveconf huser={0} -hiveconf dbname={1} -f create_{2}_avro_parquet.hql".format(HUSER,DBNAME,source)
         execute_cmd(cmd,logger)
@@ -58,7 +58,7 @@ def validate_parameter(parameter,message,logger):
     if parameter == None or parameter == "":
         logger.error(message)
         sys.exit(1)
-    
+
 def get_logger(logger_name,create_file=False):
 
     # create logger for prd_ci
@@ -73,7 +73,7 @@ def get_logger(logger_name,create_file=False):
             fh = logging.FileHandler('SPOT.log')
             fh.setLevel(level=logging.DEBUG)
             fh.setFormatter(formatter)
-    # reate console handler for logger.
+    # create console handler for logger.
     ch = logging.StreamHandler()
     ch.setLevel(level=logging.DEBUG)
     ch.setFormatter(formatter)
