@@ -66,6 +66,8 @@ LDA_OUTPUT_DIR=${DSOURCE}/${FDATE}
 
 TOPIC_COUNT=20
 
+LDA_IMP="LDAC"
+
 nodes=${NODES[0]}
 for n in "${NODES[@]:1}" ; do nodes+=",${n}"; done
 
@@ -118,7 +120,8 @@ time spark-submit --class "org.apache.spot.SuspiciousConnects" \
   --nodes ${nodes} \
   --scored ${HDFS_SCORED_CONNECTS} \
   --threshold ${TOL} \
-  --maxresults ${MAXRESULTS}
+  --maxresults ${MAXRESULTS}\
+  --ldaImplementation ${LDA_IMP}
 
 wait
 

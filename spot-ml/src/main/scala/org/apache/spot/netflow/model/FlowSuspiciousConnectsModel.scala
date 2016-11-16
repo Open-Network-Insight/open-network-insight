@@ -7,13 +7,14 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, WideUDFs}
-import org.apache.spot.SpotLDACWrapper
-import org.apache.spot.SpotLDACWrapper.{SpotLDACInput, SpotLDACOutput}
+import org.apache.spot.SpotLDAWrapper
+import org.apache.spot.SpotLDAWrapper.{SpotLDAInput, SpotLDAOutput}
 import org.apache.spot.SuspiciousConnectsArgumentParser.SuspiciousConnectsConfig
 import org.apache.spot.netflow.FlowSchema._
 import org.apache.spot.netflow.FlowWordCreator
 import org.apache.spot.utilities.Quantiles
 import WideUDFs.udf
+
 
 /**
   * A probabilistic model of the netflow traffic observed in a network.
@@ -209,10 +210,10 @@ object FlowSuspiciousConnectsModel {
     val ipWordCounts =
       sparkContext.union(srcWordCounts, dstWordCounts)
         .reduceByKey(_ + _)
-        .map({ case ((ip, word), count) => SpotLDACInput(ip, word, count) })
+        .map({ case ((ip, word), count) => SpotLDAInput(ip, word, count) })
 
 
-    val SpotLDACOutput(ipToTopicMix, wordToPerTopicProb) = SpotLDACWrapper.runLDA(ipWordCounts,
+    val SpotLDAOutput(ipToTopicMix, wordToPerTopicProb) = SpotLDAWrapper.runLDA(ipWordCounts,
       config.modelFile,
       config.topicDocumentFile,
       config.topicWordFile,
@@ -225,8 +226,13 @@ object FlowSuspiciousConnectsModel {
       config.localUser,
       config.analysis,
       config.nodes,
+      config.ldaImplementation,
+      logger,
+      "em",
+      2.5,
+      1.1,
+      120,
       config.ldaPRGSeed)
-
 
     new FlowSuspiciousConnectsModel(topicCount,
       ipToTopicMix,
@@ -234,6 +240,7 @@ object FlowSuspiciousConnectsModel {
       timeCuts,
       ibytCuts,
       ipktCuts)
+
   }
 
 }

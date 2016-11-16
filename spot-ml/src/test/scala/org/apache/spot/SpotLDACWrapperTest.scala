@@ -1,6 +1,6 @@
 package org.apache.spot
 
-import org.apache.spot.SpotLDACWrapper.SpotLDACInput
+import org.apache.spot.SpotLDAWrapper.SpotLDAInput
 import org.apache.spot.testutils.TestingSparkContextFlatSpec
 import org.scalatest.Matchers
 
@@ -54,17 +54,17 @@ class SpotLDACWrapperTest extends TestingSparkContextFlatSpec with Matchers{
   "createModel" should "return model in Array[String] format. Each string should contain the document count and the" +
     "total count for each word" in {
 
-    val documentWordData = sparkContext.parallelize(Array(SpotLDACInput("192.168.1.1", "333333_7.0_0.0_1.0", 8),
-      SpotLDACInput("10.10.98.123", "1111111_6.0_3.0_5.0", 4),
-      SpotLDACInput("66.23.45.11", "-1_43_7.0_2.0_6.0", 2),
-      SpotLDACInput("192.168.1.1", "-1_80_6.0_1.0_1.0", 5)))
+    val documentWordData = sparkContext.parallelize(Array(SpotLDAInput("192.168.1.1", "333333_7.0_0.0_1.0", 8),
+      SpotLDAInput("10.10.98.123", "1111111_6.0_3.0_5.0", 4),
+      SpotLDAInput("66.23.45.11", "-1_43_7.0_2.0_6.0", 2),
+      SpotLDAInput("192.168.1.1", "-1_80_6.0_1.0_1.0", 5)))
 
     val wordDictionary = Map("333333_7.0_0.0_1.0" -> 0,
       "1111111_6.0_3.0_5.0" -> 1,
       "-1_43_7.0_2.0_6.0" -> 2,
       "-1_80_6.0_1.0_1.0" -> 3)
 
-    val distinctDocument = documentWordData.map({case SpotLDACInput(doc, word, count) => doc}).distinct.collect()
+    val distinctDocument = documentWordData.map({case SpotLDAInput(doc, word, count) => doc}).distinct.collect()
 
     val model = SpotLDACWrapper.createModel(documentWordData, wordDictionary, distinctDocument)
 

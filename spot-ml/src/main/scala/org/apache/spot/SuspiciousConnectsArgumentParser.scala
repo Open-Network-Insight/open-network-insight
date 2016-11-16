@@ -25,7 +25,8 @@ object SuspiciousConnectsArgumentParser {
                                       threshold: Double = 1.0d,
                                       maxResults: Int = -1,
                                       outputDelimiter: String = "\t",
-                                      ldaPRGSeed: Option[Long] = None)
+                                      ldaPRGSeed: Option[Long] = None,
+                                      ldaImplementation: String = "LDAC")
 
   val parser: scopt.OptionParser[SuspiciousConnectsConfig] = new scopt.OptionParser[SuspiciousConnectsConfig]("LDA") {
 
@@ -102,6 +103,10 @@ object SuspiciousConnectsArgumentParser {
     opt[Int]("maxresults").required().valueName("integer").
       action((x, c) => c.copy(maxResults = x)).
       text("number of most suspicious connections to return")
+
+    opt[String]("ldaImplementation").required().valueName("< LDAC | sparkLDA >").
+      action((x, c) => c.copy(ldaImplementation = x)).
+      text("choice of which implementation to use for LDA, options are LDAC or SparkLDA")
 
     opt[String]("delimiter").optional().valueName("character").
       action((x, c) => c.copy(outputDelimiter = x)).

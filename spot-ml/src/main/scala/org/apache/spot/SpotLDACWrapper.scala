@@ -3,7 +3,7 @@ package org.apache.spot
 import org.apache.spark.rdd.RDD
 import java.io.PrintWriter
 import java.io.File
-
+import org.apache.spot.SpotLDAWrapper.{SpotLDAInput, SpotLDAOutput}
 import scala.io.Source._
 import scala.sys.process._
 
@@ -18,12 +18,7 @@ import scala.sys.process._
 object SpotLDACWrapper {
 
 
-  case class SpotLDACInput(doc: String, word: String, count: Int) extends Serializable
-
-  case class SpotLDACOutput(docToTopicMix: Map[String, Array[Double]], wordResults: Map[String, Array[Double]])
-
-
-  def runLDA(docWordCount: RDD[SpotLDACInput],
+  def runLDA(docWordCount: RDD[SpotLDAInput],
              modelFile: String,
              topicDocumentFile: String,
              topicWordFile: String,
@@ -36,19 +31,19 @@ object SpotLDACWrapper {
              localUser: String,
              dataSource: String,
              nodes: String,
-             prgSeed: Option[Long]):   SpotLDACOutput =  {
+             prgSeed: Option[Long]):   SpotLDAOutput =  {
 
     // Create word Map Word,Index for further usage
     val wordDictionary: Map[String, Int] = {
       val words = docWordCount
         .cache
-        .map({case SpotLDACInput(doc, word, count) => word})
+        .map({case SpotLDAInput(doc, word, count) => word})
         .distinct
         .collect
       words.zipWithIndex.toMap
     }
 
-    val distinctDocument = docWordCount.map({case SpotLDACInput(doc, word, count) => doc}).distinct.collect
+    val distinctDocument = docWordCount.map({case SpotLDAInput(doc, word, count) => doc}).distinct.collect
     //distinctDocument.cache()
 
     // Create document Map Index, Document for further usage
@@ -112,9 +107,9 @@ object SpotLDACWrapper {
     val docToTopicMix = getDocumentResults(documentTopicMixRawLines, documentDictionary, topicCount)
 
     // Create word results
-    val wordResults = getWordToProbPerTopicMap(topicWordData, wordDictionary)
+    val wordResults: Map[String, Array[Double]] = getWordToProbPerTopicMap(topicWordData, wordDictionary)
 
-    SpotLDACOutput(docToTopicMix, wordResults)
+    SpotLDAOutput(docToTopicMix, wordResults)
   }
 
   /**
@@ -148,18 +143,18 @@ object SpotLDACWrapper {
     }
   }
 
-  def createModel(documentWordData: RDD[SpotLDACInput], wordToIndex: Map[String, Int], distinctDocument: Array[String])
+  def createModel(documentWordData: RDD[SpotLDAInput], wordToIndex: Map[String, Int], distinctDocument: Array[String])
   : Array[String]
   = {
     val documentCount = documentWordData
-      .map({case SpotLDACInput(doc, word, count) => doc})
+      .map({case SpotLDAInput(doc, word, count) => doc})
       .map(document => (document, 1))
       .reduceByKey(_ + _)
       .collect
       .toMap
 
     val wordIndexdocWordCount = documentWordData
-      .map({case SpotLDACInput(doc, word, count) => (doc, wordToIndex(word) + ":" + count)})
+      .map({case SpotLDAInput(doc, word, count) => (doc, wordToIndex(word) + ":" + count)})
       .groupByKey()
       .map(x => (x._1, x._2.mkString(" ")))
       .collect
