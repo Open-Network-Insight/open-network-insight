@@ -49,7 +49,7 @@ class OA(object):
         self._conf = json.loads(open (conf_file).read(),object_pairs_hook=OrderedDict)
 
         # initialize data engine
-        self._db = self._spot_conf.get('DEFAULT', 'DBNAME')
+        self._db = self._spot_conf.get('database', 'DBNAME')
         self._engine = Data(self._db, self._table_name,self._logger)
 
     def start(self):

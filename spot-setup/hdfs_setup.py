@@ -22,7 +22,7 @@ def main():
     DFOLDERS = conf.get('DEFAULT','DFOLDERS').split()
     HUSER = conf.get('DEFAULT','HUSER')
     USER = os.environ.get('USER')
-    DBNAME = conf.get('DATABASE','DBNAME')
+    DBNAME = conf.get('database','DBNAME')
 
     #create hdfs folders
     mkdir = "sudo -u hdfs hadoop fs -mkdir " + HUSER
@@ -40,6 +40,8 @@ def main():
     #Create hive tables
     #create catalog
     cmd = "hive -e 'CREATE DATABASE {0}'".format(DBNAME)
+    execute_cmd(cmd,logger)
+
     for source in DSOURCES:
         cmd = "hive -hiveconf huser={0} -hiveconf dbname={1} -f create_{2}_avro_parquet.hql".format(HUSER,DBNAME,source)
         execute_cmd(cmd,logger)
