@@ -32,8 +32,8 @@ object SpotSparkLDAWrapper {
              logger: Logger,
              ldaSeed: Option[Long],
              ldaOptimizer: String = "em",
-             ldaAlpha : Double = 2.5,
-             ldaBeta : Double = 1.1,
+             ldaAlpha : Double = 1.02,
+             ldaBeta : Double = 1.001,
              maxIterations: Int = 20 ):   SpotLDAOutput =  {
 
     // Create word Map Word,Index for further usage
@@ -119,8 +119,20 @@ object SpotSparkLDAWrapper {
     ldaInput
   }
 
+
   def formatSparkLDAWordOutput(wordTopMat: Matrix, wordMap: Map[Int, String]) : scala.Predef.Map[String, Array[Double]] = {
-    wordTopMat.toArray.grouped(wordTopMat.numCols).zipWithIndex.toSeq.map({case (topicProbs, wordInd) => (wordMap(wordInd), topicProbs)}).toMap
+
+
+    // incoming word top matrix is in column-major order and the columns are unnormalized
+    val array = wordTopMat.toArray
+    val m = wordTopMat.numRows
+    val n = wordTopMat.numCols
+    val columnSums : Array[Double] = Range(0,n).map(j=> (Range(0,m).map(i=> wordTopMat(i,j)).sum)).toArray
+
+    val wordProbs : Seq[Array[Double]] = wordTopMat.transpose.toArray.grouped(n).toSeq
+      .map(unnormProbs => unnormProbs.zipWithIndex.map({case (u,j) => u / columnSums(j)}))
+
+     wordProbs.zipWithIndex.map({case (topicProbs, wordInd) => (wordMap(wordInd), topicProbs)}).toMap
   }
 
   def formatSparkLDADocTopicOutput(docTopDist: RDD[(Long, Vector)], docDict: Map[Int, String] ): scala.Predef.Map[String, Array[Double]] = {

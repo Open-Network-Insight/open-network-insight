@@ -1,6 +1,7 @@
 package org.apache.spot
 
 import breeze.linalg.DenseMatrix
+import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vector, Vectors}
 import org.apache.spark.rdd.RDD
 import org.apache.spot.SpotLDAWrapper.SpotLDAInput
@@ -12,6 +13,47 @@ import scala.collection.Map
 
 
 class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers {
+
+
+
+  "SparkLDA" should "handle a two word doc" in {
+    val logger = LogManager.getLogger("SuspiciousConnectsAnalysis")
+    logger.setLevel(Level.INFO)
+
+    val catFancy= SpotLDAInput("pets", "cat", 1)
+    val dogWorld = SpotLDAInput("pets", "dog", 999)
+
+    val data = sparkContext.parallelize(Seq(catFancy, dogWorld))
+    val out = SpotSparkLDAWrapper.runLDA(data, 2, logger, Some(0xdeadbeef), "em")
+
+    val topicMix =  out .docToTopicMix("pets")
+    val catTopics = out.wordResults("cat")
+    val dogTopics = out.wordResults("dog")
+
+    Math.abs(topicMix(0)*catTopics(0) + topicMix(1)*catTopics(1)) should be < 0.01
+    Math.abs(0.999 - (topicMix(0)*dogTopics(0) + topicMix(1)*dogTopics(1))) should be < 0.01
+  }
+
+  "SparkLDA" should "handle distinct docs on distinct words" in {
+    val logger = LogManager.getLogger("SuspiciousConnectsAnalysis")
+    logger.setLevel(Level.INFO)
+
+    val catFancy= SpotLDAInput("cat fancy", "cat", 1)
+    val dogWorld = SpotLDAInput("dog world", "dog", 1)
+
+    val data = sparkContext.parallelize(Seq(catFancy, dogWorld))
+    val out = SpotSparkLDAWrapper.runLDA(data,2, logger, None, "em")
+
+    val dogTopicMix =  out .docToTopicMix("dog world")
+    val catTopicMix =  out .docToTopicMix("cat fancy")
+
+    val catTopics = out.wordResults("cat")
+    val dogTopics = out.wordResults("dog")
+
+    Math.abs(1 - (catTopicMix(0)*catTopics(0) + catTopicMix(1)*catTopics(1))) should be < 0.01
+    Math.abs(1 - (dogTopicMix(0)*dogTopics(0) + dogTopicMix(1)*dogTopics(1))) should be < 0.01
+  }
+
 
   "formatSparkLDAInput" should "return input in RDD[(Long, Vector)] (collected as Array for testing) format. The index is the docID, values are the vectors of word occurrences in that doc" in {
 
@@ -81,4 +123,5 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
     sparkWordRes should contain key ("333333.0_7.0_7.0_4.0")
     sparkWordRes should contain key ("-1_23.0_7.0_7.0_4.0")
   }
+
 }
