@@ -1,12 +1,7 @@
 package org.apache.spot
 
-import java.io.{File, PrintWriter}
-
-import org.apache.spark.rdd.RDD
-import org.apache.spot.{SpotLDACWrapper, SpotSparkLDAWrapper}
-import scala.io.Source._
-import scala.sys.process._
 import org.apache.log4j.Logger
+import org.apache.spark.rdd.RDD
 
 /**
   * Spot LDA Overall Wrapper
@@ -45,7 +40,7 @@ object SpotLDAWrapper {
              ldaAlpha: Double,
              ldaBeta: Double,
              maxIterations: Int,
-             prgSeed: Option[Long]):   SpotLDAOutput =  {
+             prgSeed: Option[Long]): SpotLDAOutput = {
 
     val spotOutput = ldaImp match {
       case "LDAC" => SpotLDACWrapper.runLDA(docWordCount,
