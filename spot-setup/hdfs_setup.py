@@ -1,30 +1,33 @@
+#!/usr/bin/python
+
 import os
+import sys
 import logging
 import subprocess
 import ConfigParser
 
 def main():
 
-    #initialize logging
+    # initialize logging
     logger = get_logger('SPOT.HDFS.SETUP',create_file=False)
 
-    #initialize ConfigParser
+    # initialize ConfigParser
     conf_file = '/etc/spot.conf'
     conf = ConfigParser.SafeConfigParser()
     spot_conf = conf.read(conf_file)
-    #check for file
+    # check for file
     if len(spot_conf) < 1:
         logger.info("Failed to open /etc/spot.conf, check file location and try again")
         raise SystemExit
 
-    #Get configuration
+    # Get configuration
     DSOURCES = conf.get('DEFAULT','DSOURCES').split()
     DFOLDERS = conf.get('DEFAULT','DFOLDERS').split()
     HUSER = conf.get('DEFAULT','HUSER')
     USER = os.environ.get('USER')
     DBNAME = conf.get('database','DBNAME')
 
-    #create hdfs folders
+    # create hdfs folders
     mkdir = "sudo -u hdfs hadoop fs -mkdir " + HUSER
     execute_cmd(mkdir,logger)
     chown = "sudo -u hdfs hadoop fs -chown " + USER + ":supergroup " + HUSER
@@ -37,8 +40,8 @@ def main():
             cmd = "hadoop fs -mkdir {0}/{1}/{2}".format(HUSER,source,folder)
             execute_cmd(cmd,logger)
 
-    #Create hive tables
-    #create catalog
+    # Create hive tables
+    # create catalog
     cmd = "hive -e 'CREATE DATABASE {0}'".format(DBNAME)
     execute_cmd(cmd,logger)
 

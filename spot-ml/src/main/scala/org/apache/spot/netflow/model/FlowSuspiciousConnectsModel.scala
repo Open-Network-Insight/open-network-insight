@@ -2,18 +2,17 @@ package org.apache.spot.netflow.model
 
 import org.apache.log4j.Logger
 import org.apache.spark.SparkContext
-import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext, WideUDFs}
-import org.apache.spot.SpotLDACWrapper
-import org.apache.spot.SpotLDACWrapper.{SpotLDACInput, SpotLDACOutput}
+import org.apache.spot.spotldacwrapper.{SpotLDACInput, SpotLDACOutput}
+import org.apache.spot.spotldacwrapper.SpotLDACSchema._
 import org.apache.spot.SuspiciousConnectsArgumentParser.SuspiciousConnectsConfig
 import org.apache.spot.netflow.FlowSchema._
 import org.apache.spot.netflow.FlowWordCreator
 import org.apache.spot.utilities.Quantiles
 import WideUDFs.udf
+import org.apache.spot.spotldacwrapper.SpotLDACWrapper
 
 /**
   * A probabilistic model of the netflow traffic observed in a network.
@@ -31,7 +30,7 @@ import WideUDFs.udf
   * Create these models using the  factory in the companion object.
   *
   * @param topicCount Number of topics (profiles of common traffic patterns) used in the topic modelling routine.
-  * @param ipToTopicMix Map assigning a distribution on topics to each IP.
+  * @param ipToTopicMixDF DataFrame assigning a distribution on topics to each document or IP.
   * @param wordToPerTopicProb Map assigning to each word it's per-topic probabilities.
   *                           Ie. Prob [word | t ] for t = 0 to topicCount -1
   * @param timeCuts Quantile cut-offs for binning time-of-day values when forming words from netflow records.
@@ -40,38 +39,34 @@ import WideUDFs.udf
   */
 
 class FlowSuspiciousConnectsModel(topicCount: Int,
-                                  ipToTopicMix: Map[String, Array[Double]],
+                                  ipToTopicMixDF: DataFrame,
                                   wordToPerTopicProb: Map[String, Array[Double]],
                                   timeCuts: Array[Double],
                                   ibytCuts: Array[Double],
                                   ipktCuts: Array[Double]) {
 
 
-  def score(sc: SparkContext, sqlContext: SQLContext, inDF: DataFrame): DataFrame = {
-
-
-    import sqlContext.implicits._
-    val ipToTopicMixRDD: RDD[(String, Array[Double])] = sc.parallelize(ipToTopicMix.toSeq)
-    val ipToTopicMixDF = ipToTopicMixRDD.map({ case (doc, probabilities) => IpTopicMix(doc, probabilities) }).toDF
-
+  def score(sc: SparkContext, sqlContext: SQLContext, flowRecords: DataFrame): DataFrame = {
 
     val wordToPerTopicProbBC = sc.broadcast(wordToPerTopicProb)
 
 
+    /** A left outer join (below) takes rows from the left DF for which the join expression is not
+      * satisfied (for any entry in the right DF), and fills in 'null' values (for the additional columns).
+      */
     val dataWithSrcTopicMix = {
-      val joinedDF = inDF.join(ipToTopicMixDF, inDF(SourceIP) === ipToTopicMixDF("ip"))
-      val schemaWithSrcTopicMix = inDF.schema.fieldNames :+ "topicMix"
-      val dataWithSrcIpProb: DataFrame = joinedDF.selectExpr(schemaWithSrcTopicMix: _*)
-        .withColumnRenamed("topicMix", SrcIpTopicMix)
 
-      val joinedDF2 = dataWithSrcIpProb.join(ipToTopicMixDF, dataWithSrcIpProb(DestinationIP) === ipToTopicMixDF("ip"))
-      val schema = dataWithSrcIpProb.schema.fieldNames :+  "topicMix"
-      joinedDF2.selectExpr(schema: _*).withColumnRenamed("topicMix", DstIpTopicMix)
+      val recordsWithSrcIPTopicMixes = flowRecords.join(ipToTopicMixDF,
+        flowRecords(SourceIP) === ipToTopicMixDF(DocumentName), "left_outer")
+      val schemaWithSrcTopicMix = flowRecords.schema.fieldNames :+ TopicProbabilityMix
+      val dataWithSrcIpProb: DataFrame = recordsWithSrcIPTopicMixes.selectExpr(schemaWithSrcTopicMix: _*)
+        .withColumnRenamed(TopicProbabilityMix, SrcIpTopicMix)
+
+      val recordsWithIPTopicMixes = dataWithSrcIpProb.join(ipToTopicMixDF,
+        dataWithSrcIpProb(DestinationIP) === ipToTopicMixDF(DocumentName), "left_outer")
+      val schema = dataWithSrcIpProb.schema.fieldNames :+  TopicProbabilityMix
+        recordsWithIPTopicMixes.selectExpr(schema: _*).withColumnRenamed(TopicProbabilityMix, DstIpTopicMix)
     }
-
-
-
-
 
     val scoreFunction =  new FlowScoreFunction(timeCuts,
         ibytCuts,
@@ -109,12 +104,7 @@ class FlowSuspiciousConnectsModel(topicCount: Int,
 
   }
 
-
-
-
 }
-case class IpTopicMix(ip: String, topicMix
-: Array[Double]) extends Serializable
 
 /**
   * Contains dataframe schema information as well as the train-from-dataframe routine
@@ -184,15 +174,15 @@ object FlowSuspiciousConnectsModel {
 
     // simplify DNS log entries into "words"
 
-    val flowWordCreator = new FlowWordCreator(ibytCuts, ipktCuts, timeCuts)
+    val flowWordCreator = new FlowWordCreator(timeCuts, ibytCuts, ipktCuts)
 
     val srcWordUDF = flowWordCreator.srcWordUDF
     val dstWordUDF = flowWordCreator.dstWordUDF
 
     val dataWithWordsDF = totalDataDF.withColumn(SourceWord, flowWordCreator.srcWordUDF(ModelColumns: _*))
       .withColumn(DestinationWord, flowWordCreator.dstWordUDF(ModelColumns: _*))
-    // aggregate per-word counts at each IP
 
+    // Aggregate per-word counts at each IP
     val srcWordCounts = dataWithWordsDF.select(SourceIP, SourceWord)
       .map({ case Row(sourceIp: String, sourceWord: String) => (sourceIp, sourceWord) -> 1 })
       .reduceByKey(_ + _)
@@ -207,8 +197,9 @@ object FlowSuspiciousConnectsModel {
         .map({ case ((ip, word), count) => SpotLDACInput(ip, word, count) })
 
 
-    val SpotLDACOutput(ipToTopicMix, wordToPerTopicProb) = SpotLDACWrapper.runLDA(ipWordCounts,
+    val SpotLDACOutput(ipToTopicMixDF, wordToPerTopicProb) = SpotLDACWrapper.runLDA(ipWordCounts,
       config.modelFile,
+      config.hdfsModelFile,
       config.topicDocumentFile,
       config.topicWordFile,
       config.mpiPreparationCmd,
@@ -220,11 +211,15 @@ object FlowSuspiciousConnectsModel {
       config.localUser,
       config.analysis,
       config.nodes,
-      config.ldaPRGSeed)
+      config.ldaPRGSeed,
+      sparkContext,
+      sqlContext,
+      logger
+    )
 
 
     new FlowSuspiciousConnectsModel(topicCount,
-      ipToTopicMix,
+      ipToTopicMixDF,
       wordToPerTopicProb,
       timeCuts,
       ibytCuts,
