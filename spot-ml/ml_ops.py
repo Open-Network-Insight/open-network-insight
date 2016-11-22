@@ -52,10 +52,12 @@ def main():
     ## paths for intermediate files
     HDFS_DOCRESULTS = "{0}/doc_results.csv".format(HPATH)
     LOCAL_DOCRESULTS = "{0}/doc_results.csv".format(LPATH)
+
     HDFS_WORDRESULTS = "{0}/word_results.csv".format(HPATH)
     LOCAL_WORDRESULTS = "{0}/word_results.csv".format(LPATH)
 
     HDFS_SCORED_CONNECTS = "{0}/scores".format(HPATH)
+    HDFS_MODEL = "{0}/model".format(HPATH)
 
     LDA_OUTPUT_DIR = "{1}/{1}".format(args.type,args.fdate)
 
@@ -140,13 +142,14 @@ def main():
         "--topiccount " + TOPIC_COUNT,
         "--nodes " + nodes_csl,
         "--scored " + HDFS_SCORED_CONNECTS,
+        "--tempmodel " + HDFS_MODEL,
         "--threshold " + TOL,
         "--maxresults " + MAXRESULTS]
 
     spark_cmd.extend(spot_jar)
 
-    execute_cmd(spark_cmd,logger)
-    #process = subprocess.Popen(spark_cmd, stdout=subprocess.PIPE, stderr=None)
+    execute_cmd(spark_cmd, logger)
+    # process = subprocess.Popen(spark_cmd, stdout=subprocess.PIPE, stderr=None)
 
     ## move results to hdfs.
     os.chdir(LPATH)
