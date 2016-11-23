@@ -102,11 +102,11 @@ The Hive tables containing DNS data for spot-ml analyses have the following sche
 
 ### Run a suspicious connects analysis
 
-To run a suspicious connects analysis, execute the  `ml_ops.sh` script in the ml directory of the MLNODE.
+To run a suspicious connects analysis, execute the  `ml_ops.py` script in the ml directory of the MLNODE.
 ```
-./ml_ops.sh YYYMMDD <type> <suspicion threshold> <max results returned>
+./ml_ops.py -d YYYMMDD -t <type> -T <suspicion threshold>  -m <max results returned>
 ```
-
+-T and -m are optional and will use the values from the spot.conf if not provided
 
 For example:  
 ```

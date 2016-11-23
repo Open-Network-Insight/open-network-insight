@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import os
+import sys
 import logging
 import argparse
 import subprocess
@@ -9,50 +10,56 @@ import ConfigParser
 
 def main():
 
-    #initialize ConfigParser
+    # initialize ConfigParser
     conf_file = '/etc/spot.conf'
     conf = ConfigParser.SafeConfigParser()
     spot_conf = conf.read(conf_file)
 
-    #initialize logging
-    logger = get_logger('SPOT.ML.OPS',create_file=False)
+    # initialize logging
+    logger = get_logger('SPOT.ML.OPS', create_file=False)
 
-    #check for file
+    # check for file
     if len(spot_conf) < 1:
         logger.info("Failed to open /etc/spot.conf, check file location and try again")
         raise SystemExit
 
-    ## parse and validate arguments
+    # parse and validate arguments
     tol = None
 
     # input Parameters
     parser = argparse.ArgumentParser(description="ML Operations script")
-    parser.add_argument('-t','--type',dest='type',required=True,help='Type of data that will be processed',metavar='')
-    parser.add_argument('-d','--date',dest='fdate',required=True,help='Specify date to be analyzed by ML',metavar='')
-    parser.add_argument('-T','--tol',dest='tol',required=False,help='If present will override default TOL from conf file',metavar='')
-    parser.add_argument('-m','--maxResults',dest='MAXRESULTS',required=False,help='If defined sets max results returned',metavar='')
+    parser.add_argument('-t','--type', dest='type', required=True, help='Type of data that will be processed', metavar='')
+    parser.add_argument('-d','--date', dest='fdate', required=True, help='Specify date to be analyzed by ML', metavar='')
+    parser.add_argument('-T','--tol', dest='tol', required=False, help='If present will override default TOL from conf file', metavar='')
+    parser.add_argument('-m','--maxResults', dest='MAXRESULTS', required=False, help='If defined sets max results returned', metavar='')
     args = parser.parse_args()
 
-    YR=args.fdate[0:4]
-    MH=args.fdate[4:6]
-    DY=args.fdate[6:8]
+    YR = args.fdate[0:4]
+    MH = args.fdate[4:6]
+    DY = args.fdate[6:8]
 
-    #getting defaults for ConfigParser interpolation
+    # getting defaults for ConfigParser interpolation
     DEFAULTS = vars(args)
-    DEFAULTS.update({'YR':YR,'MH':MH,'DY':DY})
+    DEFAULTS.update({'YR': YR, 'MH': MH, 'DY': DY})
 
-    ## prepare parameters pipeline stages
-    HPATH = conf.get('DEFAULT','HPATH',vars=DEFAULTS)
-    LPATH = conf.get('DEFAULT','LPATH',vars=DEFAULTS)
-    MAXRESULTS = conf.get('DEFAULT','MAXRESULTS')
-    DUPFACTOR = conf.get('DEFAULT','DUPFACTOR')
-    RAWDATA_PATH = conf.get(args.type,'{0}_PATH'.format(args.type.upper()), vars=DEFAULTS)
-    FEEDBACK_PATH = "{0}/{1}_scores.csv".format(conf.get('DEFAULT','LPATH',vars=DEFAULTS),args.type)
+    # prepare parameters pipeline stages
+    HPATH = conf.get('DEFAULT', 'HPATH', vars=DEFAULTS)
+    LPATH = conf.get('DEFAULT', 'LPATH', vars=DEFAULTS)
+
+    if not MAXRESULTS:
+        MAXRESULTS = conf.get('DEFAULT', 'MAXRESULTS')
+
+    RAWDATA_PATH = conf.get(args.type, '{0}_PATH'.format(args.type.upper()), vars=DEFAULTS)
+
+    FEEDBACK_PATH = "{0}/{1}_scores.csv".format(conf.get('DEFAULT', 'LPATH', vars=DEFAULTS), args.type)
+    DUPFACTOR = conf.get('DEFAULT', 'DUPFACTOR')
+
     PREPROCESS_STEP = "{0}_pre_lda".format(args.type)
     POSTPROCESS_STEP = "{0}_post_lda".format(args.type)
+
     HDFS_WORDCOUNTS = "{0}/word_counts".format(HPATH)
 
-    ## paths for intermediate files
+    # paths for intermediate files
     HDFS_DOCRESULTS = "{0}/doc_results.csv".format(HPATH)
     LOCAL_DOCRESULTS = "{0}/doc_results.csv".format(LPATH)
 
@@ -62,61 +69,65 @@ def main():
     HDFS_SCORED_CONNECTS = "{0}/scores".format(HPATH)
     HDFS_MODEL = "{0}/model".format(HPATH)
 
-    LDA_OUTPUT_DIR = "{1}/{1}".format(args.type,args.fdate)
+    LDA_OUTPUT_DIR = "{1}/{1}".format(args.type, args.fdate)
 
-    #get nodes and create comma seperated list
-    NODES = conf.get('DEFAULT','NODES').split()
+    # get nodes and create comma seperated list
+    NODES = conf.get('DEFAULT', 'NODES').split()
     nodes_csl = ','.join(NODES)
 
     cmd = "hdfs dfs -rm -R -f {0}".format(HDFS_WORDCOUNTS)
-    execute_cmd(cmd,logger)
+    execute_cmd(cmd, logger)
 
     cmd = "mkdir -p {0}".format(LPATH)
-    execute_cmd(cmd,logger)
+    execute_cmd(cmd, logger)
 
     # protect the flow_scores.csv file
     cmd = "rm -f {0}/*.{dat,beta,gamma,other,pkl}".format(LPATH)
-    execute_cmd(cmd,logger)
+    execute_cmd(cmd, logger)
 
     cmd = "hdfs dfs -rm -R -f {0}".format(HDFS_SCORED_CONNECTS)
-    execute_cmd(cmd,logger)
+    execute_cmd(cmd, logger)
 
     # Add -p <command> to execute pre MPI command.
     # Pre MPI command can be configured in /etc/spot.conf
     # In this script, after the line after --mpicmd ${MPI_CMD} add:
     # --mpiprep ${MPI_PREP_CMD}
 
-    if conf.get('mpi',"MPI_PREP_CMD"):
-        cmd = conf.get('mpi',"MPI_PREP_CMD")
-        execute_cmd(cmd,logger)
+    if conf.get('mpi', "MPI_PREP_CMD"):
+        cmd = conf.get('mpi', "MPI_PREP_CMD")
+        execute_cmd(cmd, logger)
 
-    SPK_CONFIG = conf.get('spark','SPK_CONFIG')
-    SPK_DRIVER_MEM = conf.get('spark','SPK_DRIVER_MEM')
-    SPK_EXEC = conf.get('spark','SPK_EXEC')
-    SPK_EXEC_CORES = conf.get('spark','SPK_EXEC_CORES')
-    SPK_EXEC_MEM = conf.get('spark','SPK_EXEC_MEM')
+    SPK_CONFIG = conf.get('spark', 'SPK_CONFIG')
+    SPK_DRIVER_MEM = conf.get('spark', 'SPK_DRIVER_MEM')
+    SPK_EXEC = conf.get('spark', 'SPK_EXEC')
+    SPK_EXEC_CORES = conf.get('spark', 'SPK_EXEC_CORES')
+    SPK_EXEC_MEM = conf.get('spark', 'SPK_EXEC_MEM')
     SPK_EXEC_MEM_OVERHEAD = conf.get('spark', 'SPK_EXEC_MEM_OVERHEAD')
     SPK_DRIVER_MAX_RESULTS = conf.get('spark', 'SPK_DRIVER_MAX_RESULTS')
     SPK_DRIVER_MEM_OVERHEAD = conf.get('spark', 'SPK_DRIVER_MEM_OVERHEAD')
-    LDAPATH = conf.get('DEFAULT','LDAPATH')
-    LUSER = conf.get('DEFAULT','LUSER')
-    MPI_CMD = conf.get('mpi','MPI_CMD')
-    PROCESS_COUNT = conf.get('mpi','PROCESS_COUNT')
-    TOPIC_COUNT = conf.get('DEFAULT','TOPIC_COUNT')
+    LDAPATH = conf.get('DEFAULT', 'LDAPATH')
+    LUSER = conf.get('DEFAULT', 'LUSER')
+    MPI_CMD = conf.get('mpi', 'MPI_CMD')
+    PROCESS_COUNT = conf.get('mpi', 'PROCESS_COUNT')
+    TOPIC_COUNT = conf.get('DEFAULT', 'TOPIC_COUNT')
 
     if tol:
         TOL = tol
     else:
-        TOL = conf.get('DEFAULT','TOL')
+        TOL = conf.get('DEFAULT', 'TOL')
 
-    #prepare options for spark-submit
-    spark_cmd = [
-        "time", "spark-submit", "--class org.apache.spot.SuspiciousConnects",
-         "--master yarn-client", "--conf spark.driver.maxPermSize=512m", "--conf spark.driver.cores=1",
-         "--conf spark.dynamicAllocation.enabled=true", "--conf spark.dynamicAllocation.minExecutors=1",
-         "--conf spark.executor.extraJavaOptions=-XX:MaxPermSize=512M -XX:PermSize=512M",
-         "--conf spark.shuffle.io.preferDirectBufs=false", "--conf spark.kryoserializer.buffer.max=512m",
-         "--conf spark.shuffle.service.enabled=true", "--conf spark.yarn.am.waitTime=1000000"]
+    # prepare options for spark-submit
+    spark_cmd = ["time", "spark-submit",
+                 "--class org.apache.spot.SuspiciousConnects",
+                 "--master yarn-client", "--conf spark.driver.maxPermSize=512m",
+                 "--conf spark.driver.cores=1",
+                 "--conf spark.dynamicAllocation.enabled=true",
+                 "--conf spark.dynamicAllocation.minExecutors=1",
+                 "--conf spark.executor.extraJavaOptions=-XX:MaxPermSize=512M -XX:PermSize=512M",
+                 "--conf spark.shuffle.io.preferDirectBufs=false",
+                 "--conf spark.kryoserializer.buffer.max=512m",
+                 "--conf spark.shuffle.service.enabled=true",
+                 "--conf spark.yarn.am.waitTime=100s"]
 
     spark_extras = [
         "--driver-memory " + SPK_DRIVER_MEM,
@@ -124,7 +135,7 @@ def main():
         "--conf spark.executor.cores=" + SPK_EXEC_CORES,
         "--conf spark.executor.memory=" + SPK_EXEC_MEM,
         "--conf spark.driver.maxResultSize=" + SPK_DRIVER_MAX_RESULTS,
-        "--conf spark.yarn.driver.memoryOverhead=" + SPK_DRIVER_MEM_OVERHEAD,
+        "--conf spark.yarn.am.memoryOverhead=" + SPK_DRIVER_MEM_OVERHEAD,
         "--conf spark.yarn.executor.memoryOverhead=" + SPK_EXEC_MEM_OVERHEAD]
 
     if SPK_CONFIG:
@@ -154,12 +165,12 @@ def main():
     execute_cmd(spark_cmd, logger)
     # process = subprocess.Popen(spark_cmd, stdout=subprocess.PIPE, stderr=None)
 
-    ## move results to hdfs.
+    # move results to hdfs.
     os.chdir(LPATH)
-    cmd = "hadoop fs -getmerge {0}/part-* {1}_results.csv && hadoop fs -moveFromLocal {1}_results.csv  {0}/${1}_results.csv".format(HDFS_SCORED_CONNECTS,args.type)
-    execute_cmd(cmd,logger)
+    cmd = "hadoop fs -getmerge {0}/part-* {1}_results.csv && hadoop fs -moveFromLocal {1}_results.csv  {0}/${1}_results.csv".format(HDFS_SCORED_CONNECTS, args.type)
+    execute_cmd(cmd, logger)
 
-def execute_cmd(command,logger):
+def execute_cmd(command, logger):
 
     try:
         logger.info("Executing: {0}".format(command))
@@ -169,7 +180,7 @@ def execute_cmd(command,logger):
         logger.error("There was an error executing: {0}".format(e.cmd))
         sys.exit(1)
 
-def validate_parameter(parameter,message,logger):
+def validate_parameter(parameter, message, logger):
     if parameter == None or parameter == "":
         logger.error(message)
         sys.exit(1)
@@ -202,5 +213,5 @@ def get_logger(logger_name,create_file=False):
 
 
 
-if __name__=='__main__':
+if __name__ =='__main__':
     main()
