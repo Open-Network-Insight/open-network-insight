@@ -3,7 +3,7 @@
 import logging
 import datetime
 import subprocess
-import json
+import ConfigParser
 import os
 from multiprocessing import Process
 from common.utils import Util
@@ -12,7 +12,7 @@ from common.utils import Util
 class Worker(object):
 
     def __init__(self,db_name,hdfs_app_path,kafka_consumer,conf_type,processes=None):
-        
+
         self._initialize_members(db_name,hdfs_app_path,kafka_consumer,conf_type)
 
     def _initialize_members(self,db_name,hdfs_app_path,kafka_consumer,conf_type):
@@ -24,13 +24,12 @@ class Worker(object):
         self._hdfs_app_path = hdfs_app_path
 
         # read proxy configuration.
-        self._script_path = os.path.dirname(os.path.abspath(__file__))
-        conf_file = "{0}/ingest_conf.json".format(os.path.dirname(os.path.dirname(self._script_path)))
-        conf = json.loads(open(conf_file).read())
-        self._conf = conf["pipelines"][conf_type] 
+        conf_file = "/etc/spot.conf"
+        self._conf = ConfigParser.SafeConfigParser()
+        self._conf.read(conf_file)
 
-        self._process_opt = self._conf['process_opt']
-        self._local_staging = self._conf['local_staging']
+        self._process_opt = self._conf.get(conf_type, 'process_opt')
+        self._local_staging = self._conf.get(conf_type, 'local_staging')
         self.kafka_consumer = kafka_consumer
 
     def start(self):
@@ -42,9 +41,9 @@ class Worker(object):
     def _new_file(self,file):
 
         self._logger.info("-------------------------------------- New File received --------------------------------------")
-        self._logger.info("File: {0} ".format(file))        
+        self._logger.info("File: {0} ".format(file))
         p = Process(target=self._process_new_file, args=(file,))
-        p.start() 
+        p.start()
 
     def _process_new_file(self,file):
 
@@ -81,7 +80,7 @@ class Worker(object):
         self._logger.info("Moving data to staging: {0}".format(mv_to_staging))
         Util.execute_cmd(mv_to_staging,self._logger)
 
-        #load to avro
+        # load to avro
         load_to_avro_cmd = "hive -hiveconf dbname={0} -hiveconf y={1} -hiveconf m={2} -hiveconf d={3} -hiveconf h={4} -hiveconf data_location='{5}' -f pipelines/dns/load_dns_avro_parquet.hql".format(self._db_name,binary_year,binary_month,binary_day,binary_hour,hdfs_staging_path)
 
         self._logger.info("Loading data to hive: {0}".format(load_to_avro_cmd))
