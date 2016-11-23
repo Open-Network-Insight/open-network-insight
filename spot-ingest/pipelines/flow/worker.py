@@ -5,7 +5,7 @@ import subprocess
 import datetime
 import logging
 import os
-import json 
+import ConfigParser
 from multiprocessing import Process
 from common.utils import Util
 
@@ -24,13 +24,12 @@ class Worker(object):
         self._hdfs_app_path = hdfs_app_path
 
         # read proxy configuration.
-        self._script_path = os.path.dirname(os.path.abspath(__file__))
-        conf_file = "{0}/ingest_conf.json".format(os.path.dirname(os.path.dirname(self._script_path)))
-        conf = json.loads(open(conf_file).read())
-        self._conf = conf["pipelines"][conf_type]
+        conf_file = "/etc/spot.conf"
+        self._conf = ConfigParser.SafeConfigParser()
+        self._conf.read(conf_file)
 
-        self._process_opt = self._conf['process_opt']
-        self._local_staging = self._conf['local_staging']
+        self._process_opt = self._conf.get(conf_type, 'process_opt')
+        self._local_staging = self._conf.get(conf_type, 'local_staging')
         self.kafka_consumer = kafka_consumer
 
     def start(self):
@@ -42,9 +41,9 @@ class Worker(object):
     def _new_file(self,file):
 
         self._logger.info("-------------------------------------- New File received --------------------------------------")
-        self._logger.info("File: {0} ".format(file))        
+        self._logger.info("File: {0} ".format(file))
         p = Process(target=self._process_new_file, args=(file,))
-        p.start()        
+        p.start()
 
     def _process_new_file(self,file):
 
@@ -66,7 +65,7 @@ class Worker(object):
         # build process cmd.
         process_cmd = "nfdump -o csv -r {0}{1} {2} > {0}{1}.csv".format(self._local_staging,file_name,self._process_opt)
         self._logger.info("Processing file: {0}".format(process_cmd))
-        Util.execute_cmd(process_cmd,self._logger)        
+        Util.execute_cmd(process_cmd,self._logger)
 
         # create hdfs staging.
         hdfs_path = "{0}/flow".format(self._hdfs_app_path)
