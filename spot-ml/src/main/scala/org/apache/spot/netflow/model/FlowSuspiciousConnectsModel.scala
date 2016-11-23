@@ -229,9 +229,9 @@ object FlowSuspiciousConnectsModel {
       config.ldaImplementation,
       logger,
       "em",
-      0.02,
+      1.02,
       1.001,
-      120,
+      config.ldaMaxIterations,
       config.ldaPRGSeed)
 
     new FlowSuspiciousConnectsModel(topicCount,

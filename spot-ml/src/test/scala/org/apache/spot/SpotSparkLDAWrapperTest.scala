@@ -16,7 +16,7 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
 
 
 
-  "SparkLDA" should "handle a two word doc" in {
+  "SparkLDA" should "handle an extremely unbalanced two word doc" in {
     val logger = LogManager.getLogger("SuspiciousConnectsAnalysis")
     logger.setLevel(Level.INFO)
 

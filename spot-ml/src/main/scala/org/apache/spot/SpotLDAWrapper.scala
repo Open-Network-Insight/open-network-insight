@@ -43,28 +43,34 @@ object SpotLDAWrapper {
              prgSeed: Option[Long]): SpotLDAOutput = {
 
     val spotOutput = ldaImp match {
-      case "LDAC" => SpotLDACWrapper.runLDA(docWordCount,
-        modelFile,
-        topicDocumentFile,
-        topicWordFile,
-        mpiPreparationCmd,
-        mpiCmd,
-        mpiProcessCount,
-        topicCount,
-        localPath,
-        ldaPath,
-        localUser,
-        dataSource,
-        nodes,
-        prgSeed)
-      case "SparkLDA" => SpotSparkLDAWrapper.runLDA(docWordCount,
-        topicCount,
-        logger,
-        prgSeed,
-        ldaOptimizer,
-        ldaAlpha,
-        ldaBeta,
-        maxIterations)
+      case "LDAC" => {
+        logger.info("\nYou are so old school, you run    LDAC\n")
+        SpotLDACWrapper.runLDA(docWordCount,
+          modelFile,
+          topicDocumentFile,
+          topicWordFile,
+          mpiPreparationCmd,
+          mpiCmd,
+          mpiProcessCount,
+          topicCount,
+          localPath,
+          ldaPath,
+          localUser,
+          dataSource,
+          nodes,
+          prgSeed)
+      }
+      case "SparkLDA" => {
+        logger.info("\nYou are with the fresh hotness that is    SparkLDA\n")
+        SpotSparkLDAWrapper.runLDA(docWordCount,
+          topicCount,
+          logger,
+          prgSeed,
+          ldaOptimizer,
+          ldaAlpha,
+          ldaBeta,
+          maxIterations)
+      }
       case _ => throw InvalidLDAImp(s"Invalid LDA implementation specified, options are LDAC or SparkLDA")
     }
 

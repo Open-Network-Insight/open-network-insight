@@ -2,54 +2,25 @@
 
 # parse and validate arguments
 
-FDATE=$1
-DSOURCE=$2
-
-YR=${FDATE:0:4}
-MH=${FDATE:4:2}
-DY=${FDATE:6:2}
-
-if [[ "${#FDATE}" != "8" || -z "${DSOURCE}" ]]; then
-    echo "ml_ops.sh syntax error"
-    echo "Please run ml_ops.sh again with the correct syntax:"
-    echo "./ml_ops.sh YYYYMMDD TYPE [TOL]"
-    echo "for example:"
-    echo "./ml_ops.sh 20160122 dns 1e-6"
-    echo "./ml_ops.sh 20160122 flow"
-    exit
-fi
-
+DSOURCE=$1
+RAWDATA_PATH=$2
 
 # read in variables (except for date) from etc/.conf file
-# note: FDATE and DSOURCE *must* be defined prior sourcing this conf file
 
 source /etc/spot.conf
 
 # third argument if present will override default TOL from conf file
 
-if [ -n "$3" ]; then TOL=$3 ; fi
+TOL=1.1
+MAXRESULTS=20
 
-if [ -n "$4" ]; then
-    MAXRESULTS=$4
-else
-    MAXRESULTS=-1
-fi
-
+LPATH=${LUSER}/ml/${DSOURCE}/test
+HPATH=${HUSER}/${DSOURCE}/test/scored_results
 # prepare parameters pipeline stages
 
-if [ "$DSOURCE" == "flow" ]; then
-    RAWDATA_PATH=${FLOW_PATH}
-elif [ "$DSOURCE" == "dns" ]; then
-    RAWDATA_PATH=${DNS_PATH}
-else
-    RAWDATA_PATH=${PROXY_PATH}
-fi
 
 FEEDBACK_PATH=${LPATH}/${DSOURCE}_scores.csv
 DUPFACTOR=1000
-
-PREPROCESS_STEP=${DSOURCE}_pre_lda
-POSTPROCESS_STEP=${DSOURCE}_post_lda
 
 HDFS_WORDCOUNTS=${HPATH}/word_counts
 
@@ -62,10 +33,9 @@ LOCAL_WORDRESULTS=${LPATH}/word_results.csv
 
 HDFS_SCORED_CONNECTS=${HPATH}/scores
 
-LDA_OUTPUT_DIR=${DSOURCE}/${FDATE}
+LDA_OUTPUT_DIR=test/${DSOURCE}
 
 TOPIC_COUNT=20
-
 LDA_IMP="SparkLDA"
 
 nodes=${NODES[0]}
@@ -120,13 +90,10 @@ time spark-submit --class "org.apache.spot.SuspiciousConnects" \
   --nodes ${nodes} \
   --scored ${HDFS_SCORED_CONNECTS} \
   --threshold ${TOL} \
-  --maxresults ${MAXRESULTS}\
+  --maxresults ${MAXRESULTS} \
   --ldaImplementation ${LDA_IMP} \
-  --ldaMaxIterations 20
+  --ldaMaxIterations 11
 
-wait
-
-# move results to hdfs.
 cd ${LPATH}
 hadoop fs -getmerge ${HDFS_SCORED_CONNECTS}/part-* ${DSOURCE}_results.csv && hadoop fs -moveFromLocal \
     ${DSOURCE}_results.csv  ${HDFS_SCORED_CONNECTS}/${DSOURCE}_results.csv
