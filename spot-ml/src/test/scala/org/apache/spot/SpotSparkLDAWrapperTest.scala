@@ -4,7 +4,9 @@ import breeze.linalg.DenseMatrix
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.mllib.linalg.{Matrices, Matrix, Vector, Vectors}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.apache.spot.SpotLDAWrapper.SpotLDAInput
+import org.apache.spot.spotldacwrapper.SpotLDACSchema._
 import org.apache.spot.SpotSparkLDAWrapper.{formatSparkLDADocTopicOutput, formatSparkLDAInput, formatSparkLDAWordOutput}
 import org.apache.spot.testutils.TestingSparkContextFlatSpec
 import org.scalatest.Matchers
@@ -19,14 +21,19 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
   "SparkLDA" should "handle an extremely unbalanced two word doc" in {
     val logger = LogManager.getLogger("SuspiciousConnectsAnalysis")
     logger.setLevel(Level.INFO)
+    val testSqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
+    import testSqlContext.implicits._
 
     val catFancy= SpotLDAInput("pets", "cat", 1)
     val dogWorld = SpotLDAInput("pets", "dog", 999)
 
     val data = sparkContext.parallelize(Seq(catFancy, dogWorld))
-    val out = SpotSparkLDAWrapper.runLDA(data, 2, logger, Some(0xdeadbeef), "em")
+    val out = SpotSparkLDAWrapper.runLDA(sparkContext, testSqlContext, data, 2, logger, Some(0xdeadbeef), "em")
 
-    val topicMix =  out .docToTopicMix("pets")
+    val topicMixDF = out.docToTopicMix
+
+    var topicMix =
+      topicMixDF.filter(topicMixDF(DocumentName)==="pets").select(TopicProbabilityMix).first().toSeq(0).asInstanceOf[Seq[Double]].toArray
     val catTopics = out.wordResults("cat")
     val dogTopics = out.wordResults("dog")
 
@@ -37,15 +44,21 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
   "SparkLDA" should "handle distinct docs on distinct words" in {
     val logger = LogManager.getLogger("SuspiciousConnectsAnalysis")
     logger.setLevel(Level.INFO)
+    val testSqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
+    import testSqlContext.implicits._
 
     val catFancy= SpotLDAInput("cat fancy", "cat", 1)
     val dogWorld = SpotLDAInput("dog world", "dog", 1)
 
     val data = sparkContext.parallelize(Seq(catFancy, dogWorld))
-    val out = SpotSparkLDAWrapper.runLDA(data,2, logger, None, "em")
+    val out = SpotSparkLDAWrapper.runLDA(sparkContext, testSqlContext, data,2, logger, None, "em")
 
-    val dogTopicMix =  out .docToTopicMix("dog world")
-    val catTopicMix =  out .docToTopicMix("cat fancy")
+    val topicMixDF = out.docToTopicMix
+    var dogTopicMix : Array[Double] =
+      topicMixDF.filter(topicMixDF(DocumentName)==="dog world").select(TopicProbabilityMix).first().toSeq(0).asInstanceOf[Seq[Double]].toArray
+
+    val catTopicMix: Array[Double] =
+      topicMixDF.filter(topicMixDF(DocumentName)==="cat fancy").select(TopicProbabilityMix).first().toSeq(0).asInstanceOf[Seq[Double]].toArray
 
     val catTopics = out.wordResults("cat")
     val dogTopics = out.wordResults("dog")

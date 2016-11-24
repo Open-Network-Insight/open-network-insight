@@ -1,10 +1,13 @@
 package org.apache.spot
 
 import org.apache.log4j.Logger
+import org.apache.spark.SparkContext
 import org.apache.spark.mllib.clustering.{DistributedLDAModel, EMLDAOptimizer, LDA, OnlineLDAOptimizer}
 import org.apache.spark.mllib.linalg.{Matrix, Vector, Vectors}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SQLContext
 import org.apache.spot.SpotLDAWrapper.{SpotLDAInput, SpotLDAOutput}
+import org.apache.spot.spotldacwrapper.SpotLDACSchema._
 
 import scala.collection.Map
 
@@ -20,7 +23,9 @@ import scala.collection.Map
 object SpotSparkLDAWrapper {
 
 
-  def runLDA(docWordCount: RDD[SpotLDAInput],
+  def runLDA(             sparkContext: SparkContext,
+                          sqlContext: SQLContext,
+                          docWordCount: RDD[SpotLDAInput],
              topicCount: Int,
              logger: Logger,
              ldaSeed: Option[Long],
@@ -89,14 +94,16 @@ object SpotSparkLDAWrapper {
 
     //Create doc results from vector: convert docID back to string, convert vector of probabilities to array
     val docToTopicMix: scala.Predef.Map[String, Array[Double]] = formatSparkLDADocTopicOutput(docTopicDist, documentDictionary)
+    import sqlContext.implicits._
 
+    val docToTopicMixDF = sparkContext.parallelize(docToTopicMix.toSeq).toDF(DocumentName, TopicProbabilityMix)
     //Create word results from matrix: convert matrix to sequence, wordIDs back to strings, sequence of probabilities to array
     val revWordMap: Map[Int, String] = wordDictionary.map(_.swap)
 
     val wordResults = formatSparkLDAWordOutput(wordTopicMat, revWordMap)
 
     //Create output object
-    SpotLDAOutput(docToTopicMix, wordResults)
+    SpotLDAOutput(docToTopicMixDF, wordResults)
   }
 
   def formatSparkLDAInput(docWordCount: RDD[SpotLDAInput], docStrToID: Map[String, Int], wordDictionary: Map[String, Int]): RDD[(Long, Vector)] = {

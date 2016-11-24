@@ -32,6 +32,7 @@ HDFS_WORDRESULTS=${HPATH}/word_results.csv
 LOCAL_WORDRESULTS=${LPATH}/word_results.csv
 
 HDFS_SCORED_CONNECTS=${HPATH}/scores
+HDFS_MODEL=${HPATH}/model
 
 LDA_OUTPUT_DIR=test/${DSOURCE}
 
@@ -89,6 +90,7 @@ time spark-submit --class "org.apache.spot.SuspiciousConnects" \
   --topiccount ${TOPIC_COUNT} \
   --nodes ${nodes} \
   --scored ${HDFS_SCORED_CONNECTS} \
+  --tempmodel ${HDFS_MODEL} \
   --threshold ${TOL} \
   --maxresults ${MAXRESULTS} \
   --ldaImplementation ${LDA_IMP} \

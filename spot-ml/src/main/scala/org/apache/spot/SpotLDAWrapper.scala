@@ -1,7 +1,10 @@
 package org.apache.spot
 
 import org.apache.log4j.Logger
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.{DataFrame, SQLContext}
+
 
 /**
   * Spot LDA Overall Wrapper
@@ -17,12 +20,16 @@ object SpotLDAWrapper {
 
   case class SpotLDAInput(doc: String, word: String, count: Int) extends Serializable
 
-  case class SpotLDAOutput(docToTopicMix: Map[String, Array[Double]], wordResults: Map[String, Array[Double]])
+  case class SpotLDAOutput(docToTopicMix: DataFrame, wordResults: Map[String, Array[Double]])
+
 
   case class InvalidLDAImp(message: String) extends Exception(message)
 
-  def runLDA(docWordCount: RDD[SpotLDAInput],
+  def runLDA(sparkContext: SparkContext,
+             sqlContext: SQLContext,
+              docWordCount: RDD[SpotLDAInput],
              modelFile: String,
+             hdfsModelFile: String,
              topicDocumentFile: String,
              topicWordFile: String,
              mpiPreparationCmd: String,
@@ -45,8 +52,10 @@ object SpotLDAWrapper {
     val spotOutput = ldaImp match {
       case "LDAC" => {
         logger.info("\nYou are so old school, you run    LDAC\n")
-        SpotLDACWrapper.runLDA(docWordCount,
+
+        spotldacwrapper.SpotLDACWrapper.runLDA(docWordCount,
           modelFile,
+          hdfsModelFile,
           topicDocumentFile,
           topicWordFile,
           mpiPreparationCmd,
@@ -58,11 +67,19 @@ object SpotLDAWrapper {
           localUser,
           dataSource,
           nodes,
-          prgSeed)
+          prgSeed,
+          sparkContext,
+          sqlContext,
+          logger
+        )
+
       }
       case "SparkLDA" => {
         logger.info("\nYou are with the fresh hotness that is    SparkLDA\n")
-        SpotSparkLDAWrapper.runLDA(docWordCount,
+        SpotSparkLDAWrapper.runLDA(
+          sparkContext: SparkContext,
+          sqlContext: SQLContext,
+          docWordCount,
           topicCount,
           logger,
           prgSeed,

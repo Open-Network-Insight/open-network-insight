@@ -7,7 +7,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SQLContext}
-
+import org.apache.spot.SpotLDAWrapper.{SpotLDAInput, SpotLDAOutput}
 import org.apache.spot.spotldacwrapper.SpotLDACSchema._
 
 import scala.collection.immutable.Map
@@ -25,9 +25,15 @@ import scala.sys.process._
 object SpotLDACWrapper {
 
   /**
-    * runLDA receives a RDD of SpotLDACInput and converts to Spot-LDA-C input model, then calls system process to run
+    * runLDA receives a RDD of SpotLDAInput and converts to Spot-LDA-C input model, then calls system process to run
     * Spot-LDA-C. After that, reads local files final.gamma and final.beta to normalize ML results and
-    * return as SpotLDACOutput object.
+    * return as SpotLDAOutput object.
+    *
+    * Contains routines for LDA including pre and post operations
+    * 1. Creates list of unique documents, words and model based on those two
+    * 2. Processes the model calling MPI
+    * 3. Reads MPI results: Topic distributions per document and words per topic
+    * 4. Calculates and returns probability of word given topic: p(w|z
     *
     * @param docWordCount RDD containing a list of documents or ips, each word they are related to and the count of
     *                     each word.
@@ -50,7 +56,7 @@ object SpotLDACWrapper {
     * @param logger Application Logger.
     * @return
     */
-  def runLDA(docWordCount: RDD[SpotLDACInput],
+  def runLDA(docWordCount: RDD[SpotLDAInput],
              modelFile: String,
              hdfsModelFile: String,
              topicDocumentFile: String,
@@ -67,14 +73,14 @@ object SpotLDACWrapper {
              prgSeed: Option[Long],
              sparkContext: SparkContext,
              sqlContext: SQLContext,
-             logger: Logger): SpotLDACOutput =  {
+             logger: Logger): SpotLDAOutput =  {
 
     import sqlContext.implicits._
     val docWordCountCache = docWordCount.cache()
 
     // Create word Map Word,Index for further usage
     val wordDictionary: Map[String, Int] = {
-      val words = docWordCountCache.map({case SpotLDACInput(doc, word, count) => word})
+      val words = docWordCountCache.map({case SpotLDAInput(doc, word, count) => word})
         .distinct
         .collect
       words.zipWithIndex.toMap
@@ -147,7 +153,7 @@ object SpotLDACWrapper {
     // Create word results
     val wordResults = getWordToProbPerTopicMap(topicWordData, wordDictionary)
 
-    SpotLDACOutput(docToTopicMix, wordResults)
+    SpotLDAOutput(docToTopicMix, wordResults)
   }
 
   /**
@@ -200,7 +206,7 @@ object SpotLDACWrapper {
     * @param logger Application Logger
     * @return
     */
-  def createModel(documentWordData: RDD[SpotLDACInput],
+  def createModel(documentWordData: RDD[SpotLDAInput],
                   wordToIndex: Map[String, Int],
                   sparkContext: SparkContext,
                   sqlContext: SQLContext,
@@ -208,12 +214,12 @@ object SpotLDACWrapper {
     import sqlContext.implicits._
 
     val documentCount = documentWordData
-      .map({case SpotLDACInput(doc, word, count) => doc})
+      .map({case SpotLDAInput(doc, word, count) => doc})
       .map(document => (document, 1))
       .reduceByKey(_ + _)
 
     val wordIndexdocWordCount = documentWordData
-      .map({case SpotLDACInput(doc, word, count) => (doc, wordToIndex(word) + ":" + count)})
+      .map({case SpotLDAInput(doc, word, count) => (doc, wordToIndex(word) + ":" + count)})
       .groupByKey()
       .map(x => (x._1, x._2.mkString(" ")))
 
@@ -289,4 +295,6 @@ object SpotLDACWrapper {
       probOfWordGivenTopic}).toMap
 
   }
+
+
 }
