@@ -26,7 +26,9 @@ object SuspiciousConnectsArgumentParser {
                                       threshold: Double = 1.0d,
                                       maxResults: Int = -1,
                                       outputDelimiter: String = "\t",
-                                      ldaPRGSeed: Option[Long] = None)
+                                      ldaPRGSeed: Option[Long] = None,
+                                      ldaImplementation: String = "SparkLDA",
+                                      ldaMaxIterations: Int = 20)
 
   val parser: scopt.OptionParser[SuspiciousConnectsConfig] = new scopt.OptionParser[SuspiciousConnectsConfig]("LDA") {
 
@@ -108,6 +110,10 @@ object SuspiciousConnectsArgumentParser {
       action((x, c) => c.copy(maxResults = x)).
       text("number of most suspicious connections to return")
 
+    opt[String]("ldaImplementation").required().valueName("< LDAC | sparkLDA >").
+      action((x, c) => c.copy(ldaImplementation = x)).
+      text("choice of which implementation to use for LDA, options are LDAC or SparkLDA")
+
     opt[String]("delimiter").optional().valueName("character").
       action((x, c) => c.copy(outputDelimiter = x)).
       text("number of most suspicious connections to return")
@@ -115,5 +121,9 @@ object SuspiciousConnectsArgumentParser {
     opt[String]("prgseed").optional().valueName("long").
       action((x, c) => c.copy(ldaPRGSeed = Some(x.toLong))).
       text("seed for the pseudorandom generator")
+
+    opt[Int]("ldaMaxIterations").optional().valueName("int").
+      action((x, c) => c.copy(ldaMaxIterations = x)).
+      text("maximum number of iterations used in LDA")
   }
 }
