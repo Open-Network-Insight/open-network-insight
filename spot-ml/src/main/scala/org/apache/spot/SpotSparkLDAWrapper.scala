@@ -44,7 +44,7 @@ object SpotSparkLDAWrapper {
       words.zipWithIndex.toMap
     }
 
-    val distinctDocument: Array[String] = docWordCount.map({ case SpotLDAInput(doc, _, _) => doc }).distinct.collect
+    val distinctDocument: Array[String] = docWordCount.map({ case SpotLDAInput(doc, word, count) => doc }).distinct.collect
 
     // Create document Map Index, Document for further usage
     val documentDictionary: Map[Int, String] = {
