@@ -16,13 +16,10 @@ import scala.collection.Map
 
 class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers {
 
-
-
   "SparkLDA" should "handle an extremely unbalanced two word doc" in {
     val logger = LogManager.getLogger("SuspiciousConnectsAnalysis")
     logger.setLevel(Level.INFO)
     val testSqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    import testSqlContext.implicits._
 
     val catFancy= SpotLDAInput("pets", "cat", 1)
     val dogWorld = SpotLDAInput("pets", "dog", 999)
@@ -45,7 +42,6 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
     val logger = LogManager.getLogger("SuspiciousConnectsAnalysis")
     logger.setLevel(Level.INFO)
     val testSqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    import testSqlContext.implicits._
 
     val catFancy= SpotLDAInput("cat fancy", "cat", 1)
     val dogWorld = SpotLDAInput("dog world", "dog", 1)
@@ -66,7 +62,6 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
     Math.abs(1 - (catTopicMix(0)*catTopics(0) + catTopicMix(1)*catTopics(1))) should be < 0.01
     Math.abs(1 - (dogTopicMix(0)*dogTopics(0) + dogTopicMix(1)*dogTopics(1))) should be < 0.01
   }
-
 
   "formatSparkLDAInput" should "return input in RDD[(Long, Vector)] (collected as Array for testing) format. The index is the docID, values are the vectors of word occurrences in that doc" in {
 
@@ -94,7 +89,8 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
     sparkLDAInArr shouldBe Array((0,Vectors.sparse(4, Array(0,3), Array(8.0,5.0))), (1,Vectors.sparse(4,Array(1),Array(4.0))), (2,Vectors.sparse(4,Array(2),Array(2.0))))
   }
 
-  "formatSparkLDADocTopicOuptut" should "return Map[Int,String] after converting doc results from vector: convert docID back to string, convert vector of probabilities to array" in {
+  "formatSparkLDADocTopicOuptut" should "return RDD[(String,Array(Double))] after converting doc results from vector: " +
+    "convert docID back to string, convert vector of probabilities to array" in {
 
     val documentWordData = sparkContext.parallelize(Array(SpotLDAInput("192.168.1.1", "333333_7.0_0.0_1.0", 8),
       SpotLDAInput("10.10.98.123", "1111111_6.0_3.0_5.0", 4),
@@ -116,11 +112,11 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
     val docTopicDist: RDD[(Long, Vector)] = sparkContext.parallelize(Array((0.toLong, Vectors.dense(0.15, 0.3, 0.5, 0.05)), (1.toLong,
       Vectors.dense(0.25, 0.15, 0.4, 0.2)), (2.toLong, Vectors.dense(0.4, 0.1, 0.3, 0.2))))
 
-    val sparkDocRes = formatSparkLDADocTopicOutput(docTopicDist, documentDictionary)
+    val sparkDocRes: Array[(String, Array[Double])] = formatSparkLDADocTopicOutput(docTopicDist, documentDictionary).collect()
 
-    sparkDocRes should contain key ("192.168.1.1")
-    sparkDocRes should contain key ("10.10.98.123")
-    sparkDocRes should contain key ("66.23.45.11")
+    sparkDocRes(0)._1 should be ("192.168.1.1")
+    sparkDocRes(1)._1 should be ("10.10.98.123")
+    sparkDocRes(2)._1 should be ("66.23.45.11")
   }
 
   "formatSparkLDAWordOutput" should "return Map[Int,String] after converting word matrix to sequence, wordIDs back to strings, and sequence of probabilities to array" in {
