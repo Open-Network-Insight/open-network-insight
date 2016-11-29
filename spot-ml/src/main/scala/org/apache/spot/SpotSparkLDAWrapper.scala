@@ -115,7 +115,6 @@ object SpotSparkLDAWrapper {
 
     documentDictionary.unpersist()
 
-    //val docToTopicMixDF = docToTopicMix.toDF(DocumentName, TopicProbabilityMix)
     //Create word results from matrix: convert matrix to sequence, wordIDs back to strings, sequence of probabilities to array
     val revWordMap: Map[Int, String] = wordDictionary.map(_.swap)
 
