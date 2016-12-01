@@ -13,7 +13,7 @@ object SpotLDACSchema {
 
   val WordNameWordCount = "word_count"
   val WordName = "word_name"
-  val WordNumber = "word_id"
+  val WordNumber = "word_number"
 
   // documentResults
   val TopicProbabilityMix = "topic_prob_mix"
