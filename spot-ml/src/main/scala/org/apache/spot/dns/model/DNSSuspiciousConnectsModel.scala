@@ -207,12 +207,10 @@ object DNSSuspiciousConnectsModel {
       config.nodes,
       config.ldaImplementation,
       logger,
-      "em",
       1.02,
       1.001,
       config.ldaMaxIterations,
       Some(0xdeadbeef))
-    // config.ldaPRGSeed)
 
     // Since DNS is still broadcasting ip to topic mix, we need to convert data frame to Map[String, Array[Double]]
     val ipToTopicMix = ipToTopicMixDF

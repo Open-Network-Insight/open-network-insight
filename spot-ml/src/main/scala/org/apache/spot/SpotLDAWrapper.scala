@@ -43,7 +43,6 @@ object SpotLDAWrapper {
              nodes: String,
              ldaImp: String,
              logger: Logger,
-             ldaOptimizer: String,
              ldaAlpha: Double,
              ldaBeta: Double,
              maxIterations: Int,
@@ -83,7 +82,6 @@ object SpotLDAWrapper {
           topicCount,
           logger,
           prgSeed,
-          ldaOptimizer,
           ldaAlpha,
           ldaBeta,
           maxIterations)

@@ -96,7 +96,7 @@ object SpotLDACWrapper {
       .map(
         x=>  x.toString().replaceAll("\\[","").replaceAll("\\]","")
       )
-      .zipWithIndex.toDF(DocumentName, DocumentId)
+      .zipWithIndex.toDF(DocumentName, DocumentNumber)
 
     // Save model to HDFS and then getmerge to file system
 
@@ -261,12 +261,12 @@ object SpotLDACWrapper {
             case (documentTopicProbabilityMix, documentTopicProbabilityMixId) =>
               (getDocumentToTopicProbabilityArray(documentTopicProbabilityMix, topicCount), documentTopicProbabilityMixId)
           }
-        ).toDF(TopicProbabilityMix, DocumentId)
+        ).toDF(TopicProbabilityMix, DocumentNumber)
 
       val ipToTopicMix = topicDocumentData.join(docIndexToDocument,
-        topicDocumentData(DocumentId).equalTo(docIndexToDocument(DocumentId)))
-        .drop(topicDocumentData(DocumentId))
-        .drop(docIndexToDocument(DocumentId)).select(col(DocumentName), col(TopicProbabilityMix))
+        topicDocumentData(DocumentNumber).equalTo(docIndexToDocument(DocumentNumber)))
+        .drop(topicDocumentData(DocumentNumber))
+        .drop(docIndexToDocument(DocumentNumber)).select(col(DocumentName), col(TopicProbabilityMix))
 
       ipToTopicMix
     }
