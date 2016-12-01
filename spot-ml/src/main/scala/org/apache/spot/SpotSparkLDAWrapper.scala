@@ -30,7 +30,6 @@ object SpotSparkLDAWrapper {
              topicCount: Int,
              logger: Logger,
              ldaSeed: Option[Long],
-             ldaOptimizer: String = "em",
              ldaAlpha: Double = 1.02,
              ldaBeta: Double = 1.001,
              maxIterations: Int = 20): SpotLDAOutput = {
@@ -55,7 +54,7 @@ object SpotSparkLDAWrapper {
       .map({ case SpotLDAInput(doc, word, count) => doc })
       .distinct
       .zipWithIndex
-      .toDF(DocumentName, DocumentId)
+      .toDF(DocumentName, DocumentNumber)
       .cache
 
     // Forcing an action to cache results
@@ -71,14 +70,10 @@ object SpotSparkLDAWrapper {
     docWordCountCache.unpersist()
 
     //Instantiate optimizer based on input
-    val optimizer = ldaOptimizer match {
-      case "em" => new EMLDAOptimizer
-      case "online" => new OnlineLDAOptimizer().setMiniBatchFraction(0.05 + 1.0 / documentDictionary.count)
-      case _ => throw new IllegalArgumentException(s"Only em and online are supported but got $ldaOptimizer")
-    }
+    val optimizer = new EMLDAOptimizer
 
     logger.info(s"Running Spark LDA with params alpha = $ldaAlpha beta = $ldaBeta " +
-      s"Max iterations = $maxIterations Optimizer = $ldaOptimizer")
+      s"Max iterations = $maxIterations Optimizer = em")
     //Set LDA params from input args
 
     val lda =
@@ -99,9 +94,6 @@ object SpotSparkLDAWrapper {
 
     //Convert to DistributedLDAModel to expose info about topic distribution
     val distLDAModel = ldaModel.asInstanceOf[DistributedLDAModel]
-
-    val avgLogLikelihood = distLDAModel.logLikelihood / documentDictionary.count
-    logger.info("Spark LDA Log likelihood: " + avgLogLikelihood)
 
     //Get word topic mix: columns = topic (in no guaranteed order), rows = words (# rows = vocab size)
     val wordTopicMat: Matrix = distLDAModel.topicsMatrix
@@ -142,12 +134,12 @@ object SpotSparkLDAWrapper {
     val wordCountsPerDocDF = docWordCountDF
       .join(documentDictionary, docWordCountDF(DocumentName) === documentDictionary(DocumentName))
       .drop(documentDictionary(DocumentName))
-      .withColumn(WordId, getWordId(docWordCountDF(WordName)))
+      .withColumn(WordNumber, getWordId(docWordCountDF(WordName)))
       .drop(WordName)
 
     val wordCountsPerDoc: RDD[(Long, Iterable[(Int, Double)])]
     = wordCountsPerDocDF
-      .select(DocumentId, WordId, WordNameWordCount)
+      .select(DocumentNumber, WordNumber, WordNameWordCount)
       .rdd
       .map({case Row(documentId: Long, wordId: Int, wordCount: Int) => (documentId.toLong, (wordId, wordCount.toDouble))})
       .groupByKey
@@ -178,12 +170,12 @@ object SpotSparkLDAWrapper {
     import sqlContext.implicits._
 
     val topicDistributionToArray = udf((topicDistribution: Vector) => topicDistribution.toArray)
-    val documentToTopicDistributionDF = docTopDist.toDF(DocumentId, TopicProbabilityMix)
+    val documentToTopicDistributionDF = docTopDist.toDF(DocumentNumber, TopicProbabilityMix)
 
     documentToTopicDistributionDF
-      .join(documentDictionary, documentToTopicDistributionDF(DocumentId) === documentDictionary(DocumentId))
-      .drop(documentDictionary(DocumentId))
-      .drop(documentToTopicDistributionDF(DocumentId))
+      .join(documentDictionary, documentToTopicDistributionDF(DocumentNumber) === documentDictionary(DocumentNumber))
+      .drop(documentDictionary(DocumentNumber))
+      .drop(documentToTopicDistributionDF(DocumentNumber))
       .select(DocumentName, TopicProbabilityMix)
       .withColumn(TopicProbabilityMixArray, topicDistributionToArray(documentToTopicDistributionDF(TopicProbabilityMix)))
       .selectExpr(s"$DocumentName  AS $DocumentName", s"$TopicProbabilityMixArray AS $TopicProbabilityMix")

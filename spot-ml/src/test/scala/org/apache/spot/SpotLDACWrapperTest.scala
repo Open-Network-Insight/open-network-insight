@@ -85,7 +85,7 @@ class SpotLDACWrapperTest extends TestingSparkContextFlatSpec with Matchers{
     val documentDictionary = modelDF.select(col(DocumentName))
       .rdd
       .map(x=>x.toString.replaceAll("\\]","").replaceAll("\\[",""))
-      .zipWithIndex.toDF(DocumentName, DocumentId)
+      .zipWithIndex.toDF(DocumentName, DocumentNumber)
 
     model should contain ("2 0:8 3:5")
     model should contain ("1 1:4")
@@ -104,7 +104,7 @@ class SpotLDACWrapperTest extends TestingSparkContextFlatSpec with Matchers{
 
     val topicCount = 20
     val documentDictionary = sparkContext.parallelize(Array
-    (("10.10.98.123"->3), ( "66.23.45.11"->0), ( "192.168.1.1"->1 ), ("133.546.43.22" -> 2))).toDF(DocumentName,DocumentId)
+    (("10.10.98.123"->3), ( "66.23.45.11"->0), ( "192.168.1.1"->1 ), ("133.546.43.22" -> 2))).toDF(DocumentName,DocumentNumber)
 
     val topicDocumentData = Array("0.0124531442 0.0124531442 0.0124531442 0.0124531442 0.0124531442 0.0124531442 0.0124531442 " +
       "0.0124531442 0.0124531442 0.0124531442 0.0124531442 23983.5532262138 0.0124531442 0.0124531442 0.0124531442 " +

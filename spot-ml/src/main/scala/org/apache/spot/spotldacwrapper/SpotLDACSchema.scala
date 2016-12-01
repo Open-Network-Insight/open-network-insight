@@ -7,13 +7,13 @@ object SpotLDACSchema {
 
   // modelDF columns
   val DocumentName = "document_name"
-  val DocumentId = "document_id"
+  val DocumentNumber = "document_number"
   val DocumentCount = "document_count"
   val DocumentNameWordNameWordCount = "document_word_count"
 
   val WordNameWordCount = "word_count"
   val WordName = "word_name"
-  val WordId = "word_id"
+  val WordNumber = "word_id"
 
   // documentResults
   val TopicProbabilityMix = "topic_prob_mix"

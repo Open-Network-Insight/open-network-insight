@@ -23,7 +23,7 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
     val dogWorld = SpotLDAInput("pets", "dog", 999)
 
     val data = sparkContext.parallelize(Seq(catFancy, dogWorld))
-    val out = SpotSparkLDAWrapper.runLDA(sparkContext, testSqlContext, data, 2, logger, Some(0xdeadbeef), "em")
+    val out = SpotSparkLDAWrapper.runLDA(sparkContext, testSqlContext, data, 2, logger, Some(0xdeadbeef))
 
     val topicMixDF = out.docToTopicMix
 
@@ -45,7 +45,7 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
     val dogWorld = SpotLDAInput("dog world", "dog", 1)
 
     val data = sparkContext.parallelize(Seq(catFancy, dogWorld))
-    val out = SpotSparkLDAWrapper.runLDA(sparkContext, testSqlContext, data,2, logger, None, "em")
+    val out = SpotSparkLDAWrapper.runLDA(sparkContext, testSqlContext, data,2, logger, None)
 
     val topicMixDF = out.docToTopicMix
     var dogTopicMix : Array[Double] =
@@ -79,7 +79,7 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
         .map({ case SpotLDAInput(doc, word, count) => doc })
         .distinct
         .zipWithIndex
-        .toDF(DocumentName, DocumentId)
+        .toDF(DocumentName, DocumentNumber)
     }
 
     val sparkLDAInput: RDD[(Long, Vector)] = SpotSparkLDAWrapper.formatSparkLDAInput(documentWordData, documentDictionary, wordDictionary, sqlContext)
@@ -104,7 +104,7 @@ class SpotSparkLDAWrapperTest extends TestingSparkContextFlatSpec with Matchers 
         .map({ case SpotLDAInput(doc, word, count) => doc })
         .distinct
         .zipWithIndex
-        .toDF(DocumentName, DocumentId)
+        .toDF(DocumentName, DocumentNumber)
     }
 
     val docTopicDist: RDD[(Long, Vector)] = sparkContext.parallelize(Array((0.toLong, Vectors.dense(0.15, 0.3, 0.5, 0.05)), (1.toLong,

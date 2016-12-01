@@ -216,12 +216,10 @@ object FlowSuspiciousConnectsModel {
       config.nodes,
       config.ldaImplementation,
       logger,
-      "em",
       1.02,
       1.001,
       config.ldaMaxIterations,
       Some(0xdeadbeef))
-    // config.ldaPRGSeed)
 
     new FlowSuspiciousConnectsModel(topicCount,
       ipToTopicMixDF,
