@@ -61,13 +61,13 @@ class OA(object):
         ####################
 
         self._create_folder_structure()
-        # self._add_ipynb()  
-        # self._get_flow_results()
-        # self._add_network_context()
-        # self._add_geo_localization()
-        # self._add_reputation()        
-        # self._create_flow_scores_csv()
-        # self._get_oa_details()
+        self._add_ipynb()  
+        self._get_flow_results()
+        self._add_network_context()
+        self._add_geo_localization()
+        self._add_reputation()        
+        self._create_flow_scores_csv()
+        self._get_oa_details()
         self._ingest_summary()
 
         ##################
@@ -389,6 +389,6 @@ class OA(object):
 
      
     def _ingest_summary(self):
-        Util.get_ingest_summary(self,'flow')
-       
 
+        self._logger.info("Updating ingest summary")  
+        Util.get_ingest_summary(self,'flow') 

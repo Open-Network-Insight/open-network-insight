@@ -70,6 +70,7 @@ class OA(object):
         self._add_hash()
         self._create_proxy_scores_csv()
         self._get_oa_details()
+        self._ingest_summary()
 
 
         ##################
@@ -292,3 +293,8 @@ class OA(object):
             except OSError:
                 pass
 
+
+    def _ingest_summary(self):
+
+        self._logger.info("Updating ingest summary")  
+        Util.get_ingest_summary(self,'proxy') 

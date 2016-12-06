@@ -70,6 +70,7 @@ class OA(object):
         self._add_network_context()
         self._create_dns_scores_csv()
         self._get_oa_details()
+        self._ingest_summary()
 
         ##################
         end = time.time()
@@ -326,3 +327,9 @@ class OA(object):
             dndro_qry = ("SELECT dns_a, dns_qry_name, ip_dst FROM (SELECT susp.ip_dst, susp.dns_qry_name, susp.dns_a FROM {0}.{1} as susp WHERE susp.y={2} AND susp.m={3} AND susp.d={4} AND susp.ip_dst='{5}' LIMIT {6}) AS tmp GROUP BY dns_a, dns_qry_name, ip_dst").format(db,table,year,month,day,ip_dst,limit)
             # execute query
             self._engine.query(dndro_qry,dendro_file)
+
+        
+    def _ingest_summary(self):
+
+        self._logger.info("Updating ingest summary")  
+        Util.get_ingest_summary(self,'dns') 

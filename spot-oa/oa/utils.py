@@ -118,9 +118,11 @@ class Util(object):
 
 			ingest_summary_file = "{0}/is_{1}{2}.csv".format(obj._ingest_summary_path,yr,mn)			
 			ingest_summary_tmp = "{0}/is_{1}{2}.tmp".format(obj._ingest_summary_path,yr,mn)
-			df = pd.read_csv(ingest_summary_file, delimiter=',',names=ingest_summary_cols, skiprows=1)
- 
-			df_filtered = df[df['date'].str.contains("{0}-{1}-{2}".format(yr, mn, dy)) == False] 
+			if os.path.isfile(ingest_summary_file):
+				df = pd.read_csv(ingest_summary_file, delimiter=',',names=ingest_summary_cols, skiprows=1)
+				df_filtered = df[df['date'].str.contains("{0}-{1}-{2}".format(yr, mn, dy)) == False] 
+			else:
+				df = pd.DataFrame()
 			
 			# get ingest summary.           
 			ingest_summary_qry = ("SELECT tryear, trmonth, trday, trhour, trminute, COUNT(*) total"
@@ -143,14 +145,11 @@ class Util(object):
 
 			result_rows = iter(result_rows)
 			next(result_rows) 
-			df_new = pd.DataFrame([["{0}-{1}-{2} {3}:{4}".format(yr, mn, dy, row[3].zfill(2) ,row[4].zfill(2)), row[5]] for row in result_rows],columns = ingest_summary_cols)
-			
+			df_new = pd.DataFrame([["{0}-{1}-{2} {3}:{4}".format(yr, mn, dy, row[3].zfill(2) ,row[4].zfill(2)), row[5]] for row in result_rows],columns = ingest_summary_cols)			
 
 			df_filtered = df_filtered.append(df_new, ignore_index=True)
  			df_filtered.to_csv(ingest_summary_tmp,sep=',', index=False)
-			
-			# rm_big_file = "rm {0}".format(results_file)
-			# mv_tmp_file = "mv {0} {1}".format(ingest_summary_tmp, ingest_summary_file)
+
 			os.remove(results_file)
 			os.rename(ingest_summary_tmp,ingest_summary_file)
 		  
