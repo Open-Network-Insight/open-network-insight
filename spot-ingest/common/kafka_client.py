@@ -1,11 +1,20 @@
-#!/bin/env python 
+#!/bin/env python
 import logging
 import os
+import sys
 from common.utils import Util
-from kafka import KafkaProducer
-from kafka import KafkaConsumer as KC
-from kafka.partitioner.roundrobin import RoundRobinPartitioner
-from kafka.common import TopicPartition
+from confluent_kafka import Producer
+from confluent_kafka import Consumer, KafkaError
+
+# librdkafka kerberos configs
+krb_conf_options = {'sasl.mechanisms': 'gssapi',
+                    'security.protocol': 'sasl_plaintext',
+                    'sasl.kerberos.service.name': 'kafka',
+                    'sasl.kerberos.kinit.cmd': 'kinit -k -t "%{sasl.kerberos.keytab}" %{sasl.kerberos.principal}',
+                    'sasl.kerberos.principal': os.getenv('KRB_USER'),
+                    'sasl.kerberos.keytab': os.getenv('KEYTABPATH'),
+                    'sasl.kerberos.min.time.before.relogin': 60000}
+
 
 class KafkaTopic(object):
 
@@ -34,43 +43,39 @@ class KafkaTopic(object):
 
     def _create_topic(self):
 
-        self._logger.info("Creating topic: {0} with {1} parititions".format(self._topic,self._num_of_partitions))     
+        self._logger.info("Creating topic: {0} with {1} parititions".format(self._topic,self._num_of_partitions))
 
         # Create partitions for the workers.
-        self._partitions = [ TopicPartition(self._topic,p) for p in range(int(self._num_of_partitions))]        
+        # self._partitions = [ TopicPartition(self._topic,p) for p in range(int(self._num_of_partitions))]
 
-        # create partitioner
-        self._partitioner = RoundRobinPartitioner(self._partitions)
-        
-        # get script path 
+        # get script path
         zk_conf = "{0}:{1}".format(self._zk_server,self._zk_port)
         create_topic_cmd = "{0}/kafka_topic.sh create {1} {2} {3}".format(os.path.dirname(os.path.abspath(__file__)),self._topic,zk_conf,self._num_of_partitions)
 
         # execute create topic cmd
         Util.execute_cmd(create_topic_cmd,self._logger)
 
-    def send_message(self,message,topic_partition):
-
-        self._logger.info("Sending message to: Topic: {0} Partition:{1}".format(self._topic,topic_partition))
-        kafka_brokers = '{0}:{1}'.format(self._server,self._port)             
-        producer = KafkaProducer(bootstrap_servers=[kafka_brokers],api_version_auto_timeout_ms=3600000)
-        future = producer.send(self._topic,message,partition=topic_partition)
-        producer.flush(timeout=3600000)
-        producer.close()
-    
     @classmethod
-    def SendMessage(cls,message,kafka_servers,topic,partition=0):
-        producer = KafkaProducer(bootstrap_servers=kafka_servers,api_version_auto_timeout_ms=3600000)
-        future = producer.send(topic,message,partition=partition)
-        producer.flush(timeout=3600000)
-        producer.close()  
+    def SendMessage(cls, message, kafka_servers, topic, partition=0):
+
+        producer_conf = {'bootstrap.servers': kafka_servers,
+                         'api.version.request': 'false',
+                         'broker.version.fallback': '0.9.0.0',
+                         'internal.termination.signal': 0}
+
+        if os.getenv('KRB_AUTH'):
+            producer_conf.update(krb_conf_options)
+
+        producer = Producer(**producer_conf)
+        producer.send(topic,message,partition=partition)
+        producer.flush()
 
     @property
     def Topic(self):
         return self._topic
-    
+
     @property
-    def Partition(self):        
+    def Partition(self):
         return self._partitioner.partition(self._topic).partition
 
     @property
@@ -80,12 +85,12 @@ class KafkaTopic(object):
 
     @property
     def BootstrapServers(self):
-        servers = "{0}:{1}".format(self._server,self._port) 
+        servers = "{0}:{1}".format(self._server,self._port)
         return servers
 
 
 class KafkaConsumer(object):
-    
+
     def __init__(self,topic,server,port,zk_server,zk_port,partition):
 
         self._initialize_members(topic,server,port,zk_server,zk_port,partition)
@@ -98,15 +103,66 @@ class KafkaConsumer(object):
         self._zk_server = zk_server
         self._zk_port = zk_port
         self._id = partition
+        self._logger = logging.getLogger("SPOT.INGEST.KAFKA")
 
     def start(self):
-        
+
         kafka_brokers = '{0}:{1}'.format(self._server,self._port)
-        consumer =  KC(bootstrap_servers=[kafka_brokers],group_id=self._topic)
-        partition = [TopicPartition(self._topic,int(self._id))]
-        consumer.assign(partitions=partition)
-        consumer.poll()
-        return consumer
+        self._consumer_conf = {'bootstrap.servers': kafka_brokers,
+                                'group.id': self._id,
+                                'internal.termination.signal': 0,
+                                'api.version.request': 'false',
+                                'broker.version.fallback': '0.9.0.0'}
+
+        if os.getenv('KRB_AUTH'):
+            self._producer_conf.update(krb_conf_options)
+
+        consumer = Consumer(self._consumer_conf)
+        subscribed = None
+
+        def on_assign(consumer, partitions):
+            self._logger.info('Assigned: {0}, {1}'.format(len(partitions), partitions))
+            for p in partitions:
+                print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
+                p.offset = -1
+            consumer.assign(partitions)
+
+        def on_revoke(consumer, partitions):
+            self._logger.info('Revoked: {0} {1}'.format(len(partitions), partitions))
+            for p in partitions:
+                print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
+            consumer.unassign()
+
+        running = True
+
+        try:
+
+            consumer.subscribe([self._topic],  on_assign=on_assign, on_revoke=on_revoke)
+            self._logger.info('subscribing to ' + self._topic)
+
+            while running:
+                msg = consumer.poll(timeout=1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                        self._logger.info('{0} {1} reached end at offset {2}'.format(msg.topic(), msg.partition(), msg.offset()))
+                        continue
+                    elif msg.error():
+                        self._logger("error: " + msg.error())
+                    SystemExit
+                else:
+                    return msg
+
+        except KeyboardInterrupt:
+            self._logger.info('User interrupted')
+            raise SystemExit
+        except:
+            self._logger.info('error: {0}'.format(sys.exc_info()[0]))
+            raise SystemExit
+        finally:
+            self._logger.info('closing down consumer')
+            consumer.close()
 
     @property
     def Topic(self):
@@ -115,5 +171,3 @@ class KafkaConsumer(object):
     @property
     def ZookeperServer(self):
         return "{0}:{1}".format(self._zk_server,self._zk_port)
-
-    
