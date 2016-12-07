@@ -102,57 +102,7 @@ class Util(object):
 
 		with open(full_path_file, 'w+') as u_file:
 			writer = csv.writer(u_file, quoting=csv.QUOTE_NONE, delimiter=delimiter)
-			writer.writerows(content)
-	
-
-	@classmethod
-	def get_ingest_summary(cls, obj, pipeline):
-
-			# get date parameters.
-			yr = obj._date[:4]
-			mn = obj._date[4:6]
-			dy = obj._date[6:]
-			
-			ingest_summary_cols = ["date","total"]		
-			result_rows = []        
-
-			ingest_summary_file = "{0}/is_{1}{2}.csv".format(obj._ingest_summary_path,yr,mn)			
-			ingest_summary_tmp = "{0}/is_{1}{2}.tmp".format(obj._ingest_summary_path,yr,mn)
-			if os.path.isfile(ingest_summary_file):
-				df = pd.read_csv(ingest_summary_file, delimiter=',',names=ingest_summary_cols, skiprows=1)
-				df_filtered = df[df['date'].str.contains("{0}-{1}-{2}".format(yr, mn, dy)) == False] 
-			else:
-				df = pd.DataFrame()
-			
-			# get ingest summary.           
-			ingest_summary_qry = ("SELECT tryear, trmonth, trday, trhour, trminute, COUNT(*) total"
-								" FROM {0}.{1} "
-								" WHERE "
-								" y={2} "
-								" AND m={3} "
-								" AND d={4} "
-								" AND unix_tstamp IS NOT NULL "
-								" GROUP BY tryear, trmonth, trday, trhour, trminute;")
-
-
-			ingest_summary_qry = ingest_summary_qry.format(obj._db,pipeline, yr, mn, dy)
-			results_file = "{0}/results_{1}.csv".format(obj._ingest_summary_path,obj._date)
-			obj._engine.query(ingest_summary_qry,output_file=results_file,delimiter=",")
-
-			with open(results_file, 'rb') as rf:
-				csv_reader = csv.reader(rf, delimiter = ",")
-				result_rows = list(csv_reader)
-
-			result_rows = iter(result_rows)
-			next(result_rows) 
-			df_new = pd.DataFrame([["{0}-{1}-{2} {3}:{4}".format(yr, mn, dy, row[3].zfill(2) ,row[4].zfill(2)), row[5]] for row in result_rows],columns = ingest_summary_cols)			
-
-			df_filtered = df_filtered.append(df_new, ignore_index=True)
- 			df_filtered.to_csv(ingest_summary_tmp,sep=',', index=False)
-
-			os.remove(results_file)
-			os.rename(ingest_summary_tmp,ingest_summary_file)
-		  
+			writer.writerows(content) 
 
 
 class SecHead(object):
