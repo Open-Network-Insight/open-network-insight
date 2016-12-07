@@ -425,7 +425,7 @@ class OA(object):
         if os.path.isfile(results_file):
             result_rows = pd.read_csv(results_file, delimiter=',') 
 
-            df_new = pd.DataFrame([["{0}-{1}-{2} {3}:{4}".format(yr, mn, dy, str(val['trhour']).zfill(2), str(val['trminute']).zfill(2)), int(val[5])] for key,val in result_rows.iterrows()],columns = ingest_summary_cols)						
+            df_new = pd.DataFrame([["{0}-{1}-{2} {3}:{4}".format(yr, mn, dy, str(val['trhour']).zfill(2), str(val['trminute']).zfill(2)), int(val[5]) if not math.isnan(val['total']) else 0] for key,val in result_rows.iterrows()],columns = ingest_summary_cols)						
 
             df_filtered = df_filtered.append(df_new, ignore_index=True)
             df_filtered.to_csv(ingest_summary_tmp,sep=',', index=False)

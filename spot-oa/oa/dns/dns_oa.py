@@ -5,7 +5,7 @@ import json
 import shutil
 import sys
 import datetime
-import csv
+import csv, math
 from tld import get_tld
 
 from collections import OrderedDict
